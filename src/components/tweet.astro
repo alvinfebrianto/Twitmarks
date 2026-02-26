@@ -1,18 +1,26 @@
 ---
 export interface Props {
+  category?: string;
   embedHtml: string;
 }
 
-const { embedHtml } = Astro.props;
+const { embedHtml, category = "Other" } = Astro.props;
 ---
 
-<div class="tweet-container" set:html={embedHtml} />
+<div class="tweet-wrapper">
+  <div class="tweet-container" set:html={embedHtml} />
+  <span class="category-tag">{category}</span>
+</div>
 
 <style>
-  .tweet-container {
+  .tweet-wrapper {
+    position: relative;
     max-width: 550px;
-    padding: 12px;
     margin: 0 auto;
+  }
+
+  .tweet-container {
+    padding: 12px;
     background: #fff;
     border: 1px solid #e1e8ed;
     border-radius: 12px;
@@ -20,5 +28,20 @@ const { embedHtml } = Astro.props;
 
   .tweet-container :global(twitter-blockquote) {
     margin: 0;
+  }
+
+  .category-tag {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    padding: 6px 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: #09090b;
+    border-radius: 9999px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   }
 </style>

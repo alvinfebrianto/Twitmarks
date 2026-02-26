@@ -1,32 +1,20 @@
 ---
-import Tweet from "../components/tweet.astro";
+import HomeApp from "../components/home-app";
+import "../styles/global.css";
 
 export const prerender = false;
-
-interface TweetData {
-  created_at: string;
-  embed_html: string;
-  id: number;
-}
-
-// Fetch tweets directly from D1 database
-let tweets: TweetData[] = [];
-try {
-  const db = Astro.locals.env.DB;
-  if (db) {
-    const result = await db.prepare("SELECT * FROM tweets ORDER BY created_at DESC").all();
-    tweets = result.results || [];
-  }
-} catch (error) {
-  console.error("Failed to fetch tweets:", error);
-}
 ---
 
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xookmarks - Twitter Embed Gallery</title>
+    <title>Xookmarks - Curate the noise. Save the signal.</title>
+    <meta
+      name="description"
+      content="Your personal gallery of high-signal Twitter embeds. Organized, searchable, and beautifully presented."
+    />
     <script
       is:inline
       async
@@ -35,92 +23,7 @@ try {
     ></script>
   </head>
   <body>
-    <main>
-      <header>
-        <h1>Xookmarks</h1>
-        <p>Your Twitter Embed Gallery</p>
-      </header>
-
-      <section class="gallery">
-        {tweets.length === 0 ? (
-          <p class="empty">No tweets yet. Add your first tweet!</p>
-        ) : (
-          tweets.map((tweet) => <Tweet embedHtml={tweet.embed_html} />)
-        )}
-      </section>
-    </main>
-
-    <footer>
-      <p>Built with Astro & Cloudflare Pages</p>
-    </footer>
+    <!-- biome-ignore lint/correctness/useClient: client:load is valid -->
+    <HomeApp client:load />
   </body>
 </html>
-
-<style>
-  :root {
-    --primary: #1d9bf0;
-    --bg: #f7f9fa;
-    --text: #0f1419;
-  }
-
-  * {
-    box-sizing: border-box;
-    padding: 0;
-    margin: 0;
-  }
-
-  body {
-    font-family:
-      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
-      sans-serif;
-    line-height: 1.6;
-    color: var(--text);
-    background: var(--bg);
-  }
-
-  main {
-    max-width: 800px;
-    padding: 2rem 1rem;
-    margin: 0 auto;
-  }
-
-  header {
-    margin-bottom: 3rem;
-    text-align: center;
-  }
-
-  h1 {
-    margin-bottom: 0.5rem;
-    font-size: 2.5rem;
-    color: var(--primary);
-  }
-
-  header p {
-    font-size: 1.1rem;
-    color: #536471;
-  }
-
-  .gallery {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .empty {
-    padding: 3rem;
-    font-size: 1.2rem;
-    color: #536471;
-    text-align: center;
-    background: #fff;
-    border: 2px dashed #e1e8ed;
-    border-radius: 12px;
-  }
-
-  footer {
-    padding-top: 2rem;
-    margin-top: 3rem;
-    color: #536471;
-    text-align: center;
-    border-top: 1px solid #e1e8ed;
-  }
-</style>

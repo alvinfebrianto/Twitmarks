@@ -2,17 +2,11 @@
 
 Twitter embed gallery built with Astro + Cloudflare.
 
----
-
 You are on Git Bash on Windows.
-
----
 
 ## Always-apply rules
 
 - Run `npm.cmd run gates` after making changes.
-
----
 
 ## Documentation
 
