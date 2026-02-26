@@ -1,0 +1,11 @@
+{
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.0",
+    "ultracite": "^7.2.4"
+  },
+  "scripts": {
+    "lint:fix": "ultracite fix",
+    "check": "astro check",
+    "gates": "npm run lint:fix && npm run check"
+  }
+}
