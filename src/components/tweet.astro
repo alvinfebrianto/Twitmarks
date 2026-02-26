@@ -1,0 +1,24 @@
+---
+export interface Props {
+  embedHtml: string;
+}
+
+const { embedHtml } = Astro.props;
+---
+
+<div class="tweet-container" set:html={embedHtml} />
+
+<style>
+  .tweet-container {
+    max-width: 550px;
+    padding: 12px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #e1e8ed;
+    border-radius: 12px;
+  }
+
+  .tweet-container :global(twitter-blockquote) {
+    margin: 0;
+  }
+</style>

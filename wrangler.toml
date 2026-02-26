@@ -1,0 +1,18 @@
+name = "xookmarks"
+compatibility_date = "2025-02-26"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+main = "dist/_worker.js/index.js"
+
+[assets]
+binding = "ASSETS"
+directory = "./dist"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "xookmarks-db"
+# Replace with your actual D1 database ID after running: npm run db:create
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"

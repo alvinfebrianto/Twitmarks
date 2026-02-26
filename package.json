@@ -1,11 +1,26 @@
 {
   "devDependencies": {
+    "@astrojs/check": "^0.9.6",
+    "@astrojs/cloudflare": "^12.6.12",
     "@biomejs/biome": "^2.4.0",
-    "ultracite": "^7.2.4"
+    "astro": "^5.18.0",
+    "typescript": "^5.9.3",
+    "ultracite": "^7.2.4",
+    "wrangler": "^4.68.1"
   },
   "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "wrangler pages deploy dist",
+    "db:create": "wrangler d1 create xookmarks-db",
+    "db:init": "wrangler d1 execute xookmarks-db --local --file=schema.sql",
+    "db:execute": "wrangler d1 execute xookmarks-db --file=schema.sql",
     "lint:fix": "ultracite fix",
     "check": "astro check",
     "gates": "npm run lint:fix && npm run check"
+  },
+  "dependencies": {
+    "isomorphic-dompurify": "^3.0.0"
   }
 }
