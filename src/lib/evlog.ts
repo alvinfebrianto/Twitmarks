@@ -1,4 +1,12 @@
-import { createError, type EvlogError } from "evlog";
+import { createError, type EvlogError, initLogger, log } from "evlog";
+
+initLogger({
+  env: {
+    service: "twitmarks",
+    environment: import.meta.env?.MODE ?? "development",
+  },
+  pretty: import.meta.env?.MODE !== "production",
+});
 
 export const errors = {
   notFound: (resource: string) =>
@@ -72,6 +80,8 @@ export function errorToObject(error: EvlogError): Record<string, unknown> {
     link: error.link,
   };
 }
+
+export { log };
 
 export function sanitize<T extends Record<string, unknown>>(
   obj: T,

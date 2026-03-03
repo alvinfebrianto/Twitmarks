@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import DOMPurify from "isomorphic-dompurify";
-import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
+import { ensureEvlogError, errors, errorToObject, log } from "../../lib/evlog";
 
 export const prerender = false;
 
@@ -11,7 +11,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const db = locals.env.DB;
     const adminSecret = locals.env.ADMIN_SECRET;
 
-    console.log("POST /api/tweets - Processing request", {
+    log.info("POST /api/tweets - Processing request", {
       hasAuthHeader: !!request.headers.get("Authorization"),
     });
 
@@ -74,7 +74,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .bind(sanitizedHtml)
       .run();
 
-    console.log("POST /api/tweets - Tweet created successfully", {
+    log.info("POST /api/tweets - Tweet created successfully", {
       id: result.meta?.last_row_id,
     });
 
@@ -88,7 +88,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to add tweet");
-    console.error("POST /api/tweets - Error:", {
+    log.error("POST /api/tweets - Error:", {
       message: evlogError.message,
       status: evlogError.status,
       why: evlogError.why,
@@ -105,7 +105,7 @@ export const GET: APIRoute = async ({ locals }) => {
   try {
     const db = locals.env.DB;
 
-    console.log("GET /api/tweets - Fetching tweets");
+    log.info("GET /api/tweets - Fetching tweets");
 
     if (!db) {
       const error = errors.database("check database connection");
@@ -119,9 +119,7 @@ export const GET: APIRoute = async ({ locals }) => {
       .prepare("SELECT * FROM tweets ORDER BY created_at DESC")
       .all();
 
-    console.log(
-      `GET /api/tweets - Retrieved ${result.results?.length ?? 0} tweets`
-    );
+    log.info(`GET /api/tweets - Retrieved ${result.results?.length ?? 0} tweets`);
 
     return new Response(JSON.stringify(result.results ?? []), {
       status: 200,
@@ -129,7 +127,7 @@ export const GET: APIRoute = async ({ locals }) => {
     });
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to fetch tweets");
-    console.error("GET /api/tweets - Error:", {
+    log.error("GET /api/tweets - Error:", {
       message: evlogError.message,
       status: evlogError.status,
       why: evlogError.why,
