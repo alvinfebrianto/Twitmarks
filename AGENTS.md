@@ -2,7 +2,7 @@
 
 Twitter embed gallery built with Astro + Cloudflare.
 
-You are on Git Bash on Windows.
+You are on Bash on Windows Terminal.
 
 ## Always-apply rules
 

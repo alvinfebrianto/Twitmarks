@@ -1,6 +1,3 @@
-/// <reference types="astro/client" />
-/// <reference path="../.astro/types.d.ts" />
-
 interface Runtime {
   cf: CfProperties;
   env: {
