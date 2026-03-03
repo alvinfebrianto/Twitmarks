@@ -26,7 +26,6 @@ import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "../lib/utils";
 
-// --- Types ---
 export interface Tweet {
   author: string;
   category: string;
@@ -40,7 +39,6 @@ export interface Tweet {
   retweets: number;
 }
 
-// --- Constants ---
 const CATEGORIES = [
   "Tech",
   "Design",
@@ -52,7 +50,6 @@ const CATEGORIES = [
 const SORTS = ["Newest", "Oldest", "Most Liked"];
 const DATES = ["All Time", "This Week", "This Month"];
 
-// --- MagneticButton Component ---
 export const MagneticButton = ({
   children,
   className,
@@ -100,7 +97,6 @@ export const MagneticButton = ({
   );
 };
 
-// --- TweetCard Component ---
 export const TweetCard = ({ tweet }: { tweet: Tweet }) => {
   return (
     <motion.div
@@ -192,7 +188,6 @@ export const TweetCard = ({ tweet }: { tweet: Tweet }) => {
         </button>
       </div>
 
-      {/* Category Tag */}
       <div className="absolute -top-3 -right-3">
         <span className="rounded-full bg-zinc-950 px-3 py-1.5 font-mono text-[10px] text-white uppercase tracking-widest shadow-lg">
           {tweet.category}
@@ -202,7 +197,6 @@ export const TweetCard = ({ tweet }: { tweet: Tweet }) => {
   );
 };
 
-// --- Main App Component ---
 export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -211,7 +205,6 @@ export default function App() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [cols, setCols] = useState(3);
 
-  // Responsive columns
   useEffect(() => {
     const updateCols = () => {
       if (window.innerWidth < 768) {
@@ -227,11 +220,9 @@ export default function App() {
     return () => window.removeEventListener("resize", updateCols);
   }, []);
 
-  // Filter Logic
   const filteredTweets = useMemo(() => {
     let result: Tweet[] = [];
 
-    // Search
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = MOCK_TWEETS.filter(
@@ -244,12 +235,10 @@ export default function App() {
       result = [...MOCK_TWEETS];
     }
 
-    // Categories
     if (selectedCategories.length > 0) {
       result = result.filter((t) => selectedCategories.includes(t.category));
     }
 
-    // Date
     const now = new Date();
     if (dateFilter === "This Week") {
       result = result.filter((t) => isAfter(t.date, subDays(now, 7)));
@@ -257,7 +246,6 @@ export default function App() {
       result = result.filter((t) => isAfter(t.date, subDays(now, 30)));
     }
 
-    // Sort
     if (sortOption === "Newest") {
       result.sort((a, b) => b.date.getTime() - a.date.getTime());
     } else if (sortOption === "Oldest") {
@@ -269,7 +257,6 @@ export default function App() {
     return result;
   }, [searchQuery, selectedCategories, dateFilter, sortOption]);
 
-  // Masonry Columns
   const masonryColumns = useMemo(() => {
     const columns: Tweet[][] = Array.from({ length: cols }, () => []);
     filteredTweets.forEach((tweet, i) => {
@@ -286,7 +273,6 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] bg-zinc-50 font-sans text-zinc-950 selection:bg-accent selection:text-white">
-      {/* HEADER / NAV */}
       <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 px-4 py-4">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between">
           <div className="glass-panel pointer-events-auto flex items-center gap-3 rounded-full px-6 py-3">
@@ -315,7 +301,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* HERO SECTION */}
       <section className="mx-auto max-w-[1400px] px-4 pt-32 pb-16 md:px-8">
         <div className="grid grid-cols-1 items-end gap-12 lg:grid-cols-12">
           <div className="flex flex-col gap-6 lg:col-span-7">
@@ -367,12 +352,9 @@ export default function App() {
         </div>
       </section>
 
-      {/* MAIN CONTENT */}
       <main className="mx-auto max-w-[1400px] px-4 pb-32 md:px-8">
         <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
-          {/* SIDEBAR FILTERS (Desktop) */}
           <aside className="sticky top-32 hidden flex-col gap-8 lg:col-span-3 lg:flex">
-            {/* Search */}
             <div className="group relative">
               <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
                 <MagnifyingGlass className="h-5 w-5 text-zinc-400 transition-colors group-focus-within:text-accent" />
@@ -386,7 +368,6 @@ export default function App() {
               />
             </div>
 
-            {/* Categories */}
             <div className="flex flex-col gap-4">
               <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
                 Categories
@@ -413,7 +394,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Date Range */}
             <div className="flex flex-col gap-4">
               <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
                 Timeframe
@@ -449,7 +429,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Sort */}
             <div className="flex flex-col gap-4">
               <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
                 Sort By
@@ -486,7 +465,6 @@ export default function App() {
             </div>
           </aside>
 
-          {/* TWEET GRID */}
           <div className="lg:col-span-9">
             {filteredTweets.length === 0 ? (
               <motion.div
@@ -541,7 +519,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* MOBILE FILTERS MODAL */}
       <AnimatePresence>
         {isMobileFiltersOpen && (
           <>
@@ -570,7 +547,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Mobile Search */}
               <div className="group relative">
                 <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
                   <MagnifyingGlass className="h-5 w-5 text-zinc-400" />
@@ -584,7 +560,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Mobile Categories */}
               <div className="flex flex-col gap-4">
                 <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
                   Categories
@@ -612,7 +587,6 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-2 gap-6">
-                {/* Mobile Date Range */}
                 <div className="flex flex-col gap-4">
                   <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
                     Timeframe
@@ -636,7 +610,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Mobile Sort */}
                 <div className="flex flex-col gap-4">
                   <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
                     Sort By
@@ -668,7 +641,6 @@ export default function App() {
   );
 }
 
-// --- MOCK DATA ---
 const MOCK_TWEETS: Tweet[] = [
   {
     id: 1,
