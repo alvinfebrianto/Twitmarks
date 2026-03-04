@@ -197,7 +197,7 @@ export default function App() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState("All Time");
   const [sortOption, setSortOption] = useState("Newest");
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [cols, setCols] = useState(3);
 
   useEffect(() => {
@@ -279,14 +279,14 @@ export default function App() {
             </span>
           </div>
 
-          <div className="pointer-events-auto flex items-center gap-4">
-            <button
-              className="glass-panel flex h-12 w-12 items-center justify-center rounded-full text-zinc-950 md:hidden"
-              onClick={() => setIsMobileFiltersOpen(true)}
+          <div className="pointer-events-auto flex items-center gap-3">
+            <MagneticButton
+              className="glass-panel flex h-12 w-12 items-center justify-center rounded-full text-zinc-950"
+              onClick={() => setIsFilterDrawerOpen(true)}
               type="button"
             >
               <Funnel className="h-5 w-5" weight="bold" />
-            </button>
+            </MagneticButton>
 
             <MagneticButton className="gap-2 rounded-full bg-zinc-950 px-6 py-3 font-medium text-sm text-white shadow-xl shadow-zinc-950/20">
               <Plus className="h-4 w-4" weight="bold" />
@@ -296,171 +296,9 @@ export default function App() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-[1400px] px-4 pt-32 pb-16 md:px-8">
-        <div className="grid grid-cols-1 items-end gap-12 lg:grid-cols-12">
-          <div className="flex flex-col gap-6 lg:col-span-7">
-            <motion.h1
-              animate={{ opacity: 1, y: 0 }}
-              className="font-display font-semibold text-5xl text-zinc-950 leading-[1.1] tracking-tighter md:text-7xl"
-              initial={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            >
-              Curate the noise.
-              <br />
-              <span className="text-zinc-400">Save the signal.</span>
-            </motion.h1>
-            <motion.p
-              animate={{ opacity: 1, y: 0 }}
-              className="max-w-[45ch] text-lg text-zinc-500 leading-relaxed"
-              initial={{ opacity: 0, y: 20 }}
-              transition={{
-                duration: 0.8,
-                delay: 0.1,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-            >
-              Your personal gallery of high-signal Twitter embeds. Organized,
-              searchable, and beautifully presented.
-            </motion.p>
-          </div>
-
-          <div className="flex flex-col gap-4 lg:col-span-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2 rounded-[2rem] border border-zinc-200/50 bg-white p-6">
-                <span className="font-medium text-sm text-zinc-400 uppercase tracking-widest">
-                  Total Saved
-                </span>
-                <span className="font-medium font-mono text-4xl tracking-tighter">
-                  {MOCK_TWEETS.length}
-                </span>
-              </div>
-              <div className="flex flex-col gap-2 rounded-[2rem] border border-zinc-200/50 bg-white p-6">
-                <span className="font-medium text-sm text-zinc-400 uppercase tracking-widest">
-                  Categories
-                </span>
-                <span className="font-medium font-mono text-4xl tracking-tighter">
-                  {CATEGORIES.length}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <main className="mx-auto max-w-[1400px] px-4 pb-32 md:px-8">
-        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
-          <aside className="sticky top-32 hidden flex-col gap-8 lg:col-span-3 lg:flex">
-            <div className="group relative">
-              <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
-                <MagnifyingGlass className="h-5 w-5 text-zinc-400 transition-colors group-focus-within:text-accent" />
-              </div>
-              <input
-                className="w-full rounded-2xl border border-zinc-200/80 bg-white py-4 pr-4 pl-12 text-sm shadow-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search tweets..."
-                type="text"
-                value={searchQuery}
-              />
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
-                Categories
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((cat) => {
-                  const isActive = selectedCategories.includes(cat);
-                  return (
-                    <button
-                      className={cn(
-                        "rounded-full border px-4 py-2 font-medium text-sm transition-all duration-300",
-                        isActive
-                          ? "border-zinc-950 bg-zinc-950 text-white shadow-md"
-                          : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50"
-                      )}
-                      key={cat}
-                      onClick={() => toggleCategory(cat)}
-                      type="button"
-                    >
-                      {cat}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
-                Timeframe
-              </h3>
-              <div className="flex flex-col gap-2">
-                {DATES.map((date) => (
-                  <button
-                    className={cn(
-                      "flex items-center justify-between rounded-xl border px-4 py-3 font-medium text-sm transition-all duration-300",
-                      dateFilter === date
-                        ? "border-zinc-300 bg-white text-zinc-950 shadow-sm"
-                        : "border-transparent bg-transparent text-zinc-500 hover:bg-white/50"
-                    )}
-                    key={date}
-                    onClick={() => setDateFilter(date)}
-                    type="button"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Calendar
-                        className="h-4 w-4"
-                        weight={dateFilter === date ? "fill" : "regular"}
-                      />
-                      {date}
-                    </div>
-                    {dateFilter === date && (
-                      <CheckCircle
-                        className="h-4 w-4 text-zinc-950"
-                        weight="fill"
-                      />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
-                Sort By
-              </h3>
-              <div className="flex flex-col rounded-2xl border border-zinc-200/80 bg-white p-1">
-                {SORTS.map((sort) => {
-                  let icon: React.ReactNode;
-                  if (sort === "Newest") {
-                    icon = <SortDescending className="h-4 w-4" />;
-                  } else if (sort === "Oldest") {
-                    icon = <SortAscending className="h-4 w-4" />;
-                  } else {
-                    icon = <Heart className="h-4 w-4" />;
-                  }
-
-                  return (
-                    <button
-                      className={cn(
-                        "flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-sm transition-all duration-300",
-                        sortOption === sort
-                          ? "bg-zinc-50 text-zinc-950"
-                          : "text-zinc-500 hover:bg-zinc-50/50 hover:text-zinc-900"
-                      )}
-                      key={sort}
-                      onClick={() => setSortOption(sort)}
-                      type="button"
-                    >
-                      {icon}
-                      {sort}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </aside>
-
-          <div className="lg:col-span-9">
+      <main className="mx-auto max-w-[1400px] px-4 pt-24 pb-32 md:px-8">
+        <div className="grid grid-cols-1 items-start gap-6">
+          <div>
             {filteredTweets.length === 0 ? (
               <motion.div
                 animate={{ opacity: 1, scale: 1 }}
@@ -515,27 +353,27 @@ export default function App() {
       </main>
 
       <AnimatePresence>
-        {isMobileFiltersOpen && (
+        {isFilterDrawerOpen && (
           <>
             <motion.div
               animate={{ opacity: 1 }}
-              className="fixed inset-0 z-[60] bg-zinc-950/20 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-[60] bg-zinc-950/20 backdrop-blur-sm"
               exit={{ opacity: 0 }}
               initial={{ opacity: 0 }}
-              onClick={() => setIsMobileFiltersOpen(false)}
+              onClick={() => setIsFilterDrawerOpen(false)}
             />
             <motion.div
-              animate={{ y: 0 }}
-              className="fixed right-0 bottom-0 left-0 z-[70] flex max-h-[85vh] flex-col gap-8 overflow-y-auto rounded-t-[2rem] bg-white p-6 pb-12 shadow-2xl lg:hidden"
-              exit={{ y: "100%" }}
-              initial={{ y: "100%" }}
+              animate={{ x: 0 }}
+              className="fixed right-0 top-0 bottom-0 z-[70] flex w-full max-w-md flex-col gap-8 overflow-y-auto bg-white p-8 shadow-2xl"
+              exit={{ x: "100%" }}
+              initial={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div className="flex items-center justify-between">
                 <h2 className="font-display font-semibold text-2xl">Filters</h2>
                 <button
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-500"
-                  onClick={() => setIsMobileFiltersOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200"
+                  onClick={() => setIsFilterDrawerOpen(false)}
                   type="button"
                 >
                   <X className="h-5 w-5" />
@@ -544,10 +382,10 @@ export default function App() {
 
               <div className="group relative">
                 <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
-                  <MagnifyingGlass className="h-5 w-5 text-zinc-400" />
+                  <MagnifyingGlass className="h-5 w-5 text-zinc-400 transition-colors group-focus-within:text-accent" />
                 </div>
                 <input
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-4 pr-4 pl-12 text-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  className="w-full rounded-2xl border border-zinc-200 bg-white py-4 pr-4 pl-12 text-sm shadow-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search tweets..."
                   type="text"
@@ -567,8 +405,8 @@ export default function App() {
                         className={cn(
                           "rounded-full border px-4 py-2 font-medium text-sm transition-all duration-300",
                           isActive
-                            ? "border-zinc-950 bg-zinc-950 text-white"
-                            : "border-zinc-200 bg-zinc-50 text-zinc-600"
+                            ? "border-zinc-950 bg-zinc-950 text-white shadow-md"
+                            : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50"
                         )}
                         key={cat}
                         onClick={() => toggleCategory(cat)}
@@ -581,50 +419,93 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div className="flex flex-col gap-4">
-                  <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
-                    Timeframe
-                  </h3>
-                  <div className="flex flex-col gap-2">
-                    {DATES.map((date) => (
-                      <button
-                        className={cn(
-                          "flex items-center justify-between rounded-xl border px-4 py-3 font-medium text-sm transition-all duration-300",
-                          dateFilter === date
-                            ? "border-zinc-300 bg-zinc-100 text-zinc-950"
-                            : "border-transparent bg-transparent text-zinc-500"
-                        )}
-                        key={date}
-                        onClick={() => setDateFilter(date)}
-                        type="button"
-                      >
+              <div className="flex flex-col gap-4">
+                <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
+                  Timeframe
+                </h3>
+                <div className="flex flex-col gap-2">
+                  {DATES.map((date) => (
+                    <button
+                      className={cn(
+                        "flex items-center justify-between rounded-xl border px-4 py-3 font-medium text-sm transition-all duration-300",
+                        dateFilter === date
+                          ? "border-zinc-300 bg-white text-zinc-950 shadow-sm"
+                          : "border-transparent bg-transparent text-zinc-500 hover:bg-white/50"
+                      )}
+                      key={date}
+                      onClick={() => setDateFilter(date)}
+                      type="button"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calendar
+                          className="h-4 w-4"
+                          weight={dateFilter === date ? "fill" : "regular"}
+                        />
                         {date}
-                      </button>
-                    ))}
-                  </div>
+                      </div>
+                      {dateFilter === date && (
+                        <CheckCircle
+                          className="h-4 w-4 text-zinc-950"
+                          weight="fill"
+                        />
+                      )}
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div className="flex flex-col gap-4">
-                  <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
-                    Sort By
-                  </h3>
-                  <div className="flex flex-col gap-2">
-                    {SORTS.map((sort) => (
+              <div className="flex flex-col gap-4">
+                <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
+                  Sort By
+                </h3>
+                <div className="flex flex-col rounded-2xl border border-zinc-200/80 bg-white p-1">
+                  {SORTS.map((sort) => {
+                    let icon: React.ReactNode;
+                    if (sort === "Newest") {
+                      icon = <SortDescending className="h-4 w-4" />;
+                    } else if (sort === "Oldest") {
+                      icon = <SortAscending className="h-4 w-4" />;
+                    } else {
+                      icon = <Heart className="h-4 w-4" />;
+                    }
+
+                    return (
                       <button
                         className={cn(
-                          "flex items-center gap-3 rounded-xl border px-4 py-3 font-medium text-sm transition-all duration-300",
+                          "flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-sm transition-all duration-300",
                           sortOption === sort
-                            ? "border-zinc-300 bg-zinc-100 text-zinc-950"
-                            : "border-transparent bg-transparent text-zinc-500"
+                            ? "bg-zinc-50 text-zinc-950"
+                            : "text-zinc-500 hover:bg-zinc-50/50 hover:text-zinc-900"
                         )}
                         key={sort}
                         onClick={() => setSortOption(sort)}
                         type="button"
                       >
+                        {icon}
                         {sort}
                       </button>
-                    ))}
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-auto flex flex-col gap-4 border-t border-zinc-200 pt-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4">
+                    <span className="font-medium text-xs text-zinc-400 uppercase tracking-widest">
+                      Total
+                    </span>
+                    <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter">
+                      {MOCK_TWEETS.length}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4">
+                    <span className="font-medium text-xs text-zinc-400 uppercase tracking-widest">
+                      Showing
+                    </span>
+                    <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter">
+                      {filteredTweets.length}
+                    </span>
                   </div>
                 </div>
               </div>
