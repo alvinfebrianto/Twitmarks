@@ -17,6 +17,15 @@ export const prerender = false;
     />
     <script
       is:inline
+    >
+      const theme = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (theme === "dark" || (!theme && prefersDark)) {
+        document.documentElement.classList.add("dark");
+      }
+    </script>
+    <script
+      is:inline
       async
       src="https://platform.twitter.com/widgets.js"
       charset="utf-8"

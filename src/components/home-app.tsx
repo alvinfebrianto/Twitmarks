@@ -26,6 +26,7 @@ import {
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "../lib/utils";
+import { ThemeToggle } from "./theme-toggle";
 
 export interface Tweet {
   author: string;
@@ -55,10 +56,12 @@ export const MagneticButton = ({
   children,
   className,
   onClick,
+  type = "button",
 }: {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
+  type?: "button" | "submit" | "reset";
 }) => {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -90,7 +93,7 @@ export const MagneticButton = ({
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
       style={{ x: springX, y: springY }}
-      type="button"
+      type={type}
       whileTap={{ scale: 0.95 }}
     >
       {children}
@@ -102,7 +105,7 @@ export const TweetCard = ({ tweet }: { tweet: Tweet }) => {
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
-      className="group flex flex-col gap-4 rounded-[2rem] border border-zinc-200/50 bg-white p-6 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)] transition-shadow duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)]"
+      className="group flex flex-col gap-4 rounded-[2rem] border border-zinc-200/50 bg-white p-6 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)] transition-shadow duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] dark:border-zinc-800/50 dark:bg-zinc-900 dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.2)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)]"
       exit={{ opacity: 0, scale: 0.95 }}
       initial={{ opacity: 0, y: 20 }}
       layout
@@ -110,7 +113,7 @@ export const TweetCard = ({ tweet }: { tweet: Tweet }) => {
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 overflow-hidden rounded-full border border-zinc-200 bg-zinc-100">
+          <div className="h-10 w-10 overflow-hidden rounded-full border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
             <img
               alt={tweet.author}
               className="h-full w-full object-cover"
@@ -120,26 +123,27 @@ export const TweetCard = ({ tweet }: { tweet: Tweet }) => {
             />
           </div>
           <div className="flex flex-col">
-            <span className="font-display font-semibold text-zinc-950 leading-tight">
+            <span className="font-display font-semibold text-zinc-950 leading-tight dark:text-zinc-50">
               {tweet.author}
             </span>
-            <span className="font-mono text-sm text-zinc-500 tracking-tight">
+            <span className="font-mono text-sm text-zinc-500 tracking-tight dark:text-zinc-400">
               {tweet.handle}
             </span>
           </div>
         </div>
         <TwitterLogo
+          aria-hidden="true"
           className="h-6 w-6 text-[#1DA1F2] opacity-80"
           weight="fill"
         />
       </div>
 
-      <p className="text-[15px] text-zinc-800 leading-relaxed">
+      <p className="text-[15px] text-zinc-800 leading-relaxed dark:text-zinc-300">
         {tweet.content}
       </p>
 
       {tweet.image && (
-        <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-zinc-100 bg-zinc-50">
+        <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800">
           <img
             alt="Tweet media"
             className="h-full w-full object-cover"
@@ -151,41 +155,55 @@ export const TweetCard = ({ tweet }: { tweet: Tweet }) => {
         </div>
       )}
 
-      <div className="mt-2 flex items-center justify-between border-zinc-100/80 border-t pt-4 text-zinc-400">
+      <div className="mt-2 flex items-center justify-between border-zinc-100/80 border-t pt-4 text-zinc-400 dark:border-zinc-800/80">
         <div className="flex items-center gap-6">
           <button
-            className="group/btn flex items-center gap-2 transition-colors hover:text-zinc-900"
+            aria-label={`${tweet.replies} replies`}
+            className="group/btn flex items-center gap-2 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
             type="button"
           >
             <ChatCircle
+              aria-hidden="true"
               className="h-5 w-5 transition-transform group-hover/btn:scale-110"
               weight="regular"
             />
             <span className="font-mono text-xs">{tweet.replies}</span>
           </button>
           <button
+            aria-label={`${tweet.retweets} retweets`}
             className="group/btn flex items-center gap-2 transition-colors hover:text-emerald-500"
             type="button"
           >
             <ArrowsLeftRight
+              aria-hidden="true"
               className="h-5 w-5 transition-transform group-hover/btn:scale-110"
               weight="regular"
             />
             <span className="font-mono text-xs">{tweet.retweets}</span>
           </button>
           <button
+            aria-label={`${tweet.likes} likes`}
             className="group/btn flex items-center gap-2 transition-colors hover:text-rose-500"
             type="button"
           >
             <Heart
+              aria-hidden="true"
               className="h-5 w-5 transition-transform group-hover/btn:scale-110"
               weight="regular"
             />
             <span className="font-mono text-xs">{tweet.likes}</span>
           </button>
         </div>
-        <button className="transition-colors hover:text-accent" type="button">
-          <BookmarkSimple className="h-5 w-5" weight="regular" />
+        <button
+          aria-label="Bookmark tweet"
+          className="transition-colors hover:text-accent dark:hover:text-accent"
+          type="button"
+        >
+          <BookmarkSimple
+            aria-hidden="true"
+            className="h-5 w-5"
+            weight="regular"
+          />
         </button>
       </div>
     </motion.div>
@@ -267,29 +285,39 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-50 font-sans text-zinc-950 selection:bg-accent selection:text-white">
+    <div className="min-h-[100dvh] bg-zinc-50 font-sans text-zinc-950 selection:bg-accent selection:text-white dark:bg-zinc-950 dark:text-zinc-50">
       <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 px-4 py-4">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between">
           <div className="glass-panel pointer-events-auto flex items-center gap-3 rounded-full px-6 py-3">
             <div className="flex h-6 w-6 items-center justify-center rounded-md bg-zinc-950">
-              <TwitterLogo className="h-4 w-4 text-white" weight="fill" />
+              <TwitterLogo
+                aria-hidden="true"
+                className="h-4 w-4 text-white"
+                weight="fill"
+              />
             </div>
-            <span className="font-bold font-display text-lg tracking-tight">
+            <span className="font-bold font-display text-lg tracking-tight dark:text-zinc-50">
               Twitmarks
             </span>
           </div>
 
           <div className="pointer-events-auto flex items-center gap-3">
+            <ThemeToggle />
             <MagneticButton
-              className="glass-panel flex h-12 w-12 items-center justify-center rounded-full text-zinc-950"
+              aria-label="Open filters"
+              className="glass-panel flex h-12 w-12 items-center justify-center rounded-full text-zinc-950 dark:text-zinc-100"
               onClick={() => setIsFilterDrawerOpen(true)}
               type="button"
             >
-              <Funnel className="h-5 w-5" weight="bold" />
+              <Funnel aria-hidden="true" className="h-5 w-5" weight="bold" />
             </MagneticButton>
 
-            <MagneticButton className="gap-2 rounded-full bg-zinc-950 px-6 py-3 font-medium text-sm text-white shadow-xl shadow-zinc-950/20">
-              <Plus className="h-4 w-4" weight="bold" />
+            <MagneticButton
+              aria-label="Add new tweet"
+              className="gap-2 rounded-full bg-zinc-950 px-6 py-3 font-medium text-sm text-white shadow-xl shadow-zinc-950/20 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/20"
+              type="button"
+            >
+              <Plus aria-hidden="true" className="h-4 w-4" weight="bold" />
               <span>Add Tweet</span>
             </MagneticButton>
           </div>
@@ -302,23 +330,26 @@ export default function App() {
             {filteredTweets.length === 0 ? (
               <motion.div
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex w-full flex-col items-center justify-center gap-6 rounded-[3rem] border border-zinc-200 border-dashed bg-white p-16 text-center"
+                className="flex w-full flex-col items-center justify-center gap-6 rounded-[3rem] border border-zinc-200 border-dashed bg-white p-16 text-center dark:border-zinc-800 dark:bg-zinc-900"
                 initial={{ opacity: 0, scale: 0.95 }}
               >
-                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-zinc-100 bg-zinc-50">
-                  <MagnifyingGlass className="h-8 w-8 text-zinc-300" />
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800">
+                  <MagnifyingGlass
+                    aria-hidden="true"
+                    className="h-8 w-8 text-zinc-300"
+                  />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <h3 className="font-display font-semibold text-2xl text-zinc-950">
+                  <h3 className="font-display font-semibold text-2xl text-zinc-950 dark:text-zinc-50">
                     No tweets found
                   </h3>
-                  <p className="mx-auto max-w-[30ch] text-zinc-500">
+                  <p className="mx-auto max-w-[30ch] text-zinc-500 dark:text-zinc-400">
                     We couldn't find any tweets matching your current filters.
                     Try adjusting your search or categories.
                   </p>
                 </div>
                 <button
-                  className="mt-4 flex items-center gap-2 rounded-full bg-zinc-100 px-6 py-3 font-medium text-sm text-zinc-950 transition-colors hover:bg-zinc-200"
+                  className="mt-4 flex items-center gap-2 rounded-full bg-zinc-100 px-6 py-3 font-medium text-sm text-zinc-950 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
                   onClick={() => {
                     setSearchQuery("");
                     setSelectedCategories([]);
@@ -357,35 +388,41 @@ export default function App() {
           <>
             <motion.div
               animate={{ opacity: 1 }}
-              className="fixed inset-0 z-[60] bg-zinc-950/20 backdrop-blur-sm"
+              className="fixed inset-0 z-[60] bg-zinc-950/20 backdrop-blur-sm dark:bg-zinc-950/60"
               exit={{ opacity: 0 }}
               initial={{ opacity: 0 }}
               onClick={() => setIsFilterDrawerOpen(false)}
             />
             <motion.div
               animate={{ x: 0 }}
-              className="fixed right-0 top-0 bottom-0 z-[70] flex w-full max-w-md flex-col gap-8 overflow-y-auto bg-white p-8 shadow-2xl"
+              className="fixed top-0 right-0 bottom-0 z-[70] flex w-full max-w-md flex-col gap-8 overflow-y-auto bg-white p-8 shadow-2xl dark:bg-zinc-950"
               exit={{ x: "100%" }}
               initial={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div className="flex items-center justify-between">
-                <h2 className="font-display font-semibold text-2xl">Filters</h2>
+                <h2 className="font-display font-semibold text-2xl dark:text-zinc-50">
+                  Filters
+                </h2>
                 <button
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200"
+                  aria-label="Close filters"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
                   onClick={() => setIsFilterDrawerOpen(false)}
                   type="button"
                 >
-                  <X className="h-5 w-5" />
+                  <X aria-hidden="true" className="h-5 w-5" />
                 </button>
               </div>
 
               <div className="group relative">
                 <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
-                  <MagnifyingGlass className="h-5 w-5 text-zinc-400 transition-colors group-focus-within:text-accent" />
+                  <MagnifyingGlass
+                    aria-hidden="true"
+                    className="h-5 w-5 text-zinc-400 transition-colors group-focus-within:text-accent"
+                  />
                 </div>
                 <input
-                  className="w-full rounded-2xl border border-zinc-200 bg-white py-4 pr-4 pl-12 text-sm shadow-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  className="w-full rounded-2xl border border-zinc-200 bg-white py-4 pr-4 pl-12 text-sm shadow-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search tweets..."
                   type="text"
@@ -405,8 +442,8 @@ export default function App() {
                         className={cn(
                           "rounded-full border px-4 py-2 font-medium text-sm transition-all duration-300",
                           isActive
-                            ? "border-zinc-950 bg-zinc-950 text-white shadow-md"
-                            : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50"
+                            ? "border-zinc-950 bg-zinc-950 text-white shadow-md dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950"
+                            : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
                         )}
                         key={cat}
                         onClick={() => toggleCategory(cat)}
@@ -429,8 +466,8 @@ export default function App() {
                       className={cn(
                         "flex items-center justify-between rounded-xl border px-4 py-3 font-medium text-sm transition-all duration-300",
                         dateFilter === date
-                          ? "border-zinc-300 bg-white text-zinc-950 shadow-sm"
-                          : "border-transparent bg-transparent text-zinc-500 hover:bg-white/50"
+                          ? "border-zinc-300 bg-white text-zinc-950 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                          : "border-transparent bg-transparent text-zinc-500 hover:bg-white/50 dark:hover:bg-zinc-900/50"
                       )}
                       key={date}
                       onClick={() => setDateFilter(date)}
@@ -438,6 +475,7 @@ export default function App() {
                     >
                       <div className="flex items-center gap-3">
                         <Calendar
+                          aria-hidden="true"
                           className="h-4 w-4"
                           weight={dateFilter === date ? "fill" : "regular"}
                         />
@@ -445,7 +483,8 @@ export default function App() {
                       </div>
                       {dateFilter === date && (
                         <CheckCircle
-                          className="h-4 w-4 text-zinc-950"
+                          aria-hidden="true"
+                          className="h-4 w-4 text-zinc-950 dark:text-zinc-100"
                           weight="fill"
                         />
                       )}
@@ -458,15 +497,22 @@ export default function App() {
                 <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
                   Sort By
                 </h3>
-                <div className="flex flex-col rounded-2xl border border-zinc-200/80 bg-white p-1">
+                <div className="flex flex-col rounded-2xl border border-zinc-200/80 bg-white p-1 dark:border-zinc-800/80 dark:bg-zinc-900">
                   {SORTS.map((sort) => {
                     let icon: React.ReactNode;
                     if (sort === "Newest") {
-                      icon = <SortDescending className="h-4 w-4" />;
+                      icon = (
+                        <SortDescending
+                          aria-hidden="true"
+                          className="h-4 w-4"
+                        />
+                      );
                     } else if (sort === "Oldest") {
-                      icon = <SortAscending className="h-4 w-4" />;
+                      icon = (
+                        <SortAscending aria-hidden="true" className="h-4 w-4" />
+                      );
                     } else {
-                      icon = <Heart className="h-4 w-4" />;
+                      icon = <Heart aria-hidden="true" className="h-4 w-4" />;
                     }
 
                     return (
@@ -474,8 +520,8 @@ export default function App() {
                         className={cn(
                           "flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-sm transition-all duration-300",
                           sortOption === sort
-                            ? "bg-zinc-50 text-zinc-950"
-                            : "text-zinc-500 hover:bg-zinc-50/50 hover:text-zinc-900"
+                            ? "bg-zinc-50 text-zinc-950 dark:bg-zinc-800 dark:text-zinc-100"
+                            : "text-zinc-500 hover:bg-zinc-50/50 hover:text-zinc-900 dark:hover:bg-zinc-800/50"
                         )}
                         key={sort}
                         onClick={() => setSortOption(sort)}
@@ -489,21 +535,21 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="mt-auto flex flex-col gap-4 border-t border-zinc-200 pt-6">
+              <div className="mt-auto flex flex-col gap-4 border-zinc-200 border-t pt-6 dark:border-zinc-800">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4">
+                  <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4 dark:border-zinc-800/50 dark:bg-zinc-900">
                     <span className="font-medium text-xs text-zinc-400 uppercase tracking-widest">
                       Total
                     </span>
-                    <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter">
+                    <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter dark:text-zinc-100">
                       {MOCK_TWEETS.length}
                     </span>
                   </div>
-                  <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4">
+                  <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4 dark:border-zinc-800/50 dark:bg-zinc-900">
                     <span className="font-medium text-xs text-zinc-400 uppercase tracking-widest">
                       Showing
                     </span>
-                    <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter">
+                    <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter dark:text-zinc-100">
                       {filteredTweets.length}
                     </span>
                   </div>
