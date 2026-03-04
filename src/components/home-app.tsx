@@ -188,12 +188,6 @@ export const TweetCard = ({ tweet }: { tweet: Tweet }) => {
           <BookmarkSimple className="h-5 w-5" weight="regular" />
         </button>
       </div>
-
-      <div className="absolute -top-3 -right-3">
-        <span className="rounded-full bg-zinc-950 px-3 py-1.5 font-mono text-[10px] text-white uppercase tracking-widest shadow-lg">
-          {tweet.category}
-        </span>
-      </div>
     </motion.div>
   );
 };
