@@ -1,4 +1,4 @@
-# Xookmarks
+# Twitmarks
 
 Twitter embed gallery built with Astro + Cloudflare.
 

@@ -275,7 +275,7 @@ export default function App() {
               <TwitterLogo className="h-4 w-4 text-white" weight="fill" />
             </div>
             <span className="font-bold font-display text-lg tracking-tight">
-              Xookmarks
+              Twitmarks
             </span>
           </div>
 

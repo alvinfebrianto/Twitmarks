@@ -1,4 +1,4 @@
-name = "xookmarks"
+name = "twitmarks"
 compatibility_date = "2025-02-26"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
@@ -13,6 +13,6 @@ enabled = true
 
 [[d1_databases]]
 binding = "DB"
-database_name = "xookmarks-db"
+database_name = "twitmarks-db"
 # Replace with your actual D1 database ID after running: npm run db:create
 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
