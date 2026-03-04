@@ -1,4 +1,4 @@
-import { createError, type EvlogError, initLogger, log } from "evlog";
+import { createError, type EvlogError, initLogger } from "evlog";
 
 initLogger({
   env: {
@@ -80,8 +80,6 @@ export function errorToObject(error: EvlogError): Record<string, unknown> {
     link: error.link,
   };
 }
-
-export { log };
 
 export function sanitize<T extends Record<string, unknown>>(
   obj: T,

@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
+import { log } from "evlog";
 import DOMPurify from "isomorphic-dompurify";
-import { ensureEvlogError, errors, errorToObject, log } from "../../lib/evlog";
+import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
 
 export const prerender = false;
 
@@ -119,7 +120,9 @@ export const GET: APIRoute = async ({ locals }) => {
       .prepare("SELECT * FROM tweets ORDER BY created_at DESC")
       .all();
 
-    log.info(`GET /api/tweets - Retrieved ${result.results?.length ?? 0} tweets`);
+    log.info(
+      `GET /api/tweets - Retrieved ${result.results?.length ?? 0} tweets`
+    );
 
     return new Response(JSON.stringify(result.results ?? []), {
       status: 200,

@@ -3,6 +3,7 @@
     "@astrojs/check": "^0.9.6",
     "@astrojs/cloudflare": "^12.6.12",
     "@biomejs/biome": "^2.4.0",
+    "agentation": "^2.2.1",
     "astro": "^5.18.0",
     "typescript": "^5.9.3",
     "ultracite": "^7.2.4",

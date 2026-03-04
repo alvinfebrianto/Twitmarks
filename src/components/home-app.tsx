@@ -15,6 +15,7 @@ import {
   TwitterLogo,
   X,
 } from "@phosphor-icons/react";
+import { Agentation } from "agentation";
 import { isAfter, subDays } from "date-fns";
 import {
   AnimatePresence,
@@ -637,6 +638,8 @@ export default function App() {
           </>
         )}
       </AnimatePresence>
+
+      {import.meta.env.DEV && <Agentation />}
     </div>
   );
 }
