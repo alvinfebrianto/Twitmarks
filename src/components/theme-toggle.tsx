@@ -65,15 +65,12 @@ export function ThemeToggle() {
 
   return (
     <motion.button
-      animate={{ scale: 1 }}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       className={cn(
         "relative flex h-10 w-10 items-center justify-center rounded-full",
         "bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200",
         "dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
       )}
-      exit={{ scale: 0.95 }}
-      initial={{ scale: 0.95 }}
       onClick={toggleTheme}
       transition={{ type: "spring", stiffness: 400, damping: 17 }}
       type="button"
