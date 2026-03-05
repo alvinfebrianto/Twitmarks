@@ -14,7 +14,7 @@ Reference these files as needed:
 
 | File | When to use |
 |------|-------------|
-| [docs/ultracite.md](docs/ultracite.md) | TypeScript, code style, async patterns, error handling |
-| [docs/frameworks.md](docs/frameworks.md) | Astro components, Islands architecture, API routes |
-| [docs/security.md](docs/security.md) | Input validation, safe database queries |
-| [docs/performance.md](docs/performance.md) | Performance optimization |
+| [rules/ultracite.md](rules/ultracite.md) | TypeScript, code style, async patterns, error handling |
+| [rules/frameworks.md](rules/frameworks.md) | Astro components, Islands architecture, API routes |
+| [rules/security.md](rules/security.md) | Input validation, safe database queries |
+| [rules/performance.md](rules/performance.md) | Performance optimization |
