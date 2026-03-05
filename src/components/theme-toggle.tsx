@@ -12,7 +12,12 @@ export function ThemeToggle() {
   useEffect(() => {
     setMounted(true);
     const html = document.documentElement;
-    const stored = localStorage.getItem("theme");
+    let stored;
+    try {
+      stored = localStorage.getItem("theme");
+    } catch {
+      stored = null;
+    }
     const prefersDark = window.matchMedia(
       "(prefers-color-scheme: dark)"
     ).matches;
@@ -34,10 +39,14 @@ export function ThemeToggle() {
 
     if (newIsDark) {
       html.classList.add("dark");
-      localStorage.setItem("theme", "dark");
+      try {
+        localStorage.setItem("theme", "dark");
+      } catch {}
     } else {
       html.classList.remove("dark");
-      localStorage.setItem("theme", "light");
+      try {
+        localStorage.setItem("theme", "light");
+      } catch {}
     }
   };
 
