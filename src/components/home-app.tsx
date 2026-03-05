@@ -57,11 +57,13 @@ export const MagneticButton = ({
   className,
   onClick,
   type = "button",
+  "aria-label": ariaLabel,
 }: {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
   type?: "button" | "submit" | "reset";
+  "aria-label"?: string;
 }) => {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -85,6 +87,7 @@ export const MagneticButton = ({
 
   return (
     <motion.button
+      aria-label={ariaLabel}
       className={cn(
         "relative flex items-center justify-center transition-colors",
         className
