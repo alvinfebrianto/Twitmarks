@@ -86,7 +86,7 @@ export function ThemeToggle() {
           scale: isDark ? 0 : 1,
         }}
         className="absolute"
-        initial={{ rotate: 0, scale: 1 }}
+        initial={false}
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
       >
         <Sun aria-hidden="true" className="h-5 w-5" weight="regular" />
@@ -98,7 +98,7 @@ export function ThemeToggle() {
           scale: isDark ? 1 : 0,
         }}
         className="absolute"
-        initial={{ rotate: -180, scale: 0 }}
+        initial={false}
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
       >
         <Moon aria-hidden="true" className="h-5 w-5" weight="regular" />

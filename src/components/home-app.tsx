@@ -425,6 +425,7 @@ export default function App() {
                   />
                 </div>
                 <input
+                  aria-label="Search tweets"
                   className="w-full rounded-2xl border border-zinc-200 bg-white py-4 pr-4 pl-12 text-sm shadow-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search tweets..."

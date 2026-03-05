@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.letta/
 .astro/
 .cache/
 .wrangler/
