@@ -398,7 +398,7 @@ export default function App() {
             />
             <motion.div
               animate={{ x: 0 }}
-              className="fixed top-0 right-0 bottom-0 z-[70] flex w-full max-w-md flex-col gap-8 overflow-y-auto bg-white p-8 shadow-2xl dark:bg-zinc-950"
+              className="fixed top-0 right-0 bottom-0 z-[70] flex w-full max-w-md flex-col gap-8 overflow-y-auto bg-white p-8 shadow-2xl dark:bg-zinc-900"
               exit={{ x: "100%" }}
               initial={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
