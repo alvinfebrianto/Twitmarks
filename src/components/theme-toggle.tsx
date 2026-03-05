@@ -41,13 +41,6 @@ export function ThemeToggle() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      toggleTheme();
-    }
-  };
-
   if (!mounted) {
     return (
       <button
@@ -73,7 +66,6 @@ export function ThemeToggle() {
       exit={{ scale: 0.95 }}
       initial={{ scale: 0.95 }}
       onClick={toggleTheme}
-      onKeyDown={handleKeyDown}
       transition={{ type: "spring", stiffness: 400, damping: 17 }}
       type="button"
       whileHover={{ scale: 1.05 }}
