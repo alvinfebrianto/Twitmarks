@@ -292,10 +292,10 @@ export default function App() {
       <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 px-4 py-4">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between">
           <div className="glass-panel pointer-events-auto flex items-center gap-3 rounded-full px-6 py-3">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-zinc-950">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-zinc-950 dark:bg-zinc-100">
               <TwitterLogo
                 aria-hidden="true"
-                className="h-4 w-4 text-white"
+                className="h-4 w-4 text-white dark:text-zinc-950"
                 weight="fill"
               />
             </div>
