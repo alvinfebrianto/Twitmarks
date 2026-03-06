@@ -152,7 +152,7 @@ export default function App() {
       return;
     }
     const frame = requestAnimationFrame(() => {
-      window.twttr?.widgets?.load?.(gridRef.current ?? undefined);
+      window.twttr?.widgets?.load?.();
     });
     return () => cancelAnimationFrame(frame);
   }, [tweets]);
