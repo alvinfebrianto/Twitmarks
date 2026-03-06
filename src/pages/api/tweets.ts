@@ -1,6 +1,5 @@
 import type { APIRoute } from "astro";
 import { log } from "evlog";
-import { timingSafeEqual } from "node:crypto";
 import DOMPurify from "isomorphic-dompurify";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
 
@@ -49,14 +48,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const token = authHeader.substring(7);
     const encoder = new TextEncoder();
-    const tokenBytes = encoder.encode(token);
-    const secretBytes = encoder.encode(adminSecret);
-    const isValid =
-      tokenBytes.length === secretBytes.length &&
-      timingSafeEqual(
-        Buffer.from(tokenBytes),
-        Buffer.from(secretBytes)
-      );
+    const [tokenHashBuffer, secretHashBuffer] = await Promise.all([
+      crypto.subtle.digest("SHA-256", encoder.encode(token)),
+      crypto.subtle.digest("SHA-256", encoder.encode(adminSecret)),
+    ]);
+    const tokenHash = new Uint8Array(tokenHashBuffer);
+    const secretHash = new Uint8Array(secretHashBuffer);
+
+    let hashDiff = 0;
+    for (let i = 0; i < tokenHash.length; i++) {
+      hashDiff |= tokenHash[i] ^ secretHash[i];
+    }
+    const isValid = hashDiff === 0;
     if (!isValid) {
       const error = errors.unauthorized("Invalid token");
       return new Response(JSON.stringify(errorToObject(error)), {

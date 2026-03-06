@@ -112,18 +112,23 @@ export default function App() {
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [cols, setCols] = useState(3);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const loadTweets = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const res = await fetch("/api/tweets");
       if (!res.ok) {
+        setLoadError("Failed to load tweets. Please refresh.");
         return;
       }
       const data = (await res.json()) as DbTweet[];
       setTweets(data);
+    } catch {
+      setLoadError("Failed to load tweets. Please refresh.");
     } finally {
       setLoading(false);
     }
@@ -256,6 +261,22 @@ export default function App() {
                   }}
                 />
               </div>
+            )}
+            {!loading && loadError && (
+              <motion.div
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+                initial={{ opacity: 0, y: 8 }}
+              >
+                <p className="text-sm">{loadError}</p>
+                <button
+                  className="rounded-full bg-red-100 px-4 py-2 font-medium text-xs text-red-800 transition-colors hover:bg-red-200 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60"
+                  onClick={() => loadTweets()}
+                  type="button"
+                >
+                  Retry
+                </button>
+              </motion.div>
             )}
             {!loading && filteredTweets.length === 0 && (
               <motion.div
