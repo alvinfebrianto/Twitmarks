@@ -22,6 +22,9 @@ export function AddTweetModal({
   const [adminSecret, setAdminSecret] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const errorForEmbedHtml = error?.toLowerCase().includes("embed_html");
+  const errorForAuth = error?.toLowerCase().includes("unauthorized") || error?.toLowerCase().includes("token") || error?.toLowerCase().includes("auth");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!(embedHtml.trim() && adminSecret.trim()) || isSubmitting) {
@@ -104,7 +107,7 @@ export function AddTweetModal({
                     "w-full rounded-2xl border bg-white px-4 py-3 text-sm transition-all",
                     "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
                     "dark:bg-zinc-900 dark:text-zinc-100",
-                    error
+                    (error && errorForAuth) || (error && !errorForEmbedHtml)
                       ? "border-red-300 dark:border-red-700"
                       : "border-zinc-200 dark:border-zinc-800"
                   )}
@@ -131,7 +134,7 @@ export function AddTweetModal({
                     "min-h-[160px] w-full rounded-2xl border bg-white p-4 font-mono text-sm transition-all",
                     "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
                     "dark:bg-zinc-900 dark:text-zinc-100",
-                    error
+                    (error && errorForEmbedHtml) || (error && !errorForAuth)
                       ? "border-red-300 dark:border-red-700"
                       : "border-zinc-200 dark:border-zinc-800"
                   )}

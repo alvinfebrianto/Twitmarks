@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { log } from "evlog";
+import { timingSafeEqual } from "node:crypto";
 import DOMPurify from "isomorphic-dompurify";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
 
@@ -47,7 +48,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const token = authHeader.substring(7);
-    if (token !== adminSecret) {
+    const encoder = new TextEncoder();
+    const tokenBytes = encoder.encode(token);
+    const secretBytes = encoder.encode(adminSecret);
+    const isValid =
+      tokenBytes.length === secretBytes.length &&
+      timingSafeEqual(
+        Buffer.from(tokenBytes),
+        Buffer.from(secretBytes)
+      );
+    if (!isValid) {
       const error = errors.unauthorized("Invalid token");
       return new Response(JSON.stringify(errorToObject(error)), {
         status: error.status,
