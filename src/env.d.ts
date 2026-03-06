@@ -8,5 +8,7 @@ interface Runtime {
 }
 
 declare namespace App {
-  interface Locals extends Runtime {}
+  interface Locals {
+    runtime: Runtime;
+  }
 }

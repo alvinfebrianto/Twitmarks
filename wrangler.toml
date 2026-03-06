@@ -15,4 +15,4 @@ enabled = true
 binding = "DB"
 database_name = "twitmarks-db"
 # Replace with your actual D1 database ID after running: npm run db:create
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "8cffd895-a11e-4303-be53-07686c59d23c"
