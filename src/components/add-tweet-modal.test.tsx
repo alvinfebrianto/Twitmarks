@@ -104,4 +104,22 @@ describe("AddTweetModal", () => {
     const submitButton = screen.getByRole("button", { name: "Add Tweet" });
     expect(submitButton).toBeDisabled();
   });
+
+  it("preserves form values when submission fails", async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new Error("Unauthorized"));
+    const { user } = renderWithUser(
+      <AddTweetModal isOpen={true} onClose={vi.fn()} onSubmit={onSubmit} />
+    );
+
+    const secretInput = screen.getByLabelText("Admin Secret");
+    const textarea = screen.getByLabelText("Twitter Embed Code");
+
+    await user.type(secretInput, "wrong-secret");
+    await user.type(textarea, "<blockquote>tweet</blockquote>");
+    await user.click(screen.getByRole("button", { name: "Add Tweet" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(secretInput).toHaveValue("wrong-secret");
+    expect(textarea).toHaveValue("<blockquote>tweet</blockquote>");
+  });
 });

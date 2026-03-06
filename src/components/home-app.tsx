@@ -476,6 +476,7 @@ export default function App() {
             setAddError(
               error instanceof Error ? error.message : "Failed to add tweet"
             );
+            throw error;
           }
         }}
       />

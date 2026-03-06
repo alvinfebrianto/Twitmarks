@@ -33,6 +33,8 @@ export function AddTweetModal({
       await onSubmit(embedHtml.trim(), adminSecret.trim());
       setEmbedHtml("");
       setAdminSecret("");
+    } catch {
+      // The parent surfaces submission errors; keep the current values for retry.
     } finally {
       setIsSubmitting(false);
     }
