@@ -130,6 +130,23 @@ describe("POST /api/tweets", () => {
     const json = await response.json();
     expect(json.embed_html).toContain("https://t.co/abc123");
   });
+
+  it("returns 400 when sanitized embed_html becomes empty", async () => {
+    const db = createMockDB();
+    const locals = createLocals({ db });
+    const request = createRequest({
+      embed_html: '<script>alert("xss")</script>',
+    });
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json.why).toContain(
+      "embed_html contained no allowed content after sanitization"
+    );
+    expect(db.prepare).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/tweets", () => {

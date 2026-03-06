@@ -85,6 +85,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ADD_ATTR: ["url", "data-theme", "align", "class", "style"],
       ALLOWED_URI_REGEXP: ALLOWED_URI_REGEX,
     });
+    if (!sanitizedHtml.trim()) {
+      const error = errors.badRequest(
+        "embed_html",
+        "embed_html contained no allowed content after sanitization"
+      );
+      return new Response(JSON.stringify(errorToObject(error)), {
+        status: error.status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     const result = await db
       .prepare("INSERT INTO tweets (embed_html) VALUES (?)")
