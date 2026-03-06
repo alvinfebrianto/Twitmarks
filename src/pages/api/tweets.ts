@@ -55,11 +55,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const tokenHash = new Uint8Array(tokenHashBuffer);
     const secretHash = new Uint8Array(secretHashBuffer);
 
-    let hashDiff = 0;
-    for (let i = 0; i < tokenHash.length; i++) {
-      hashDiff |= tokenHash[i] ^ secretHash[i];
-    }
-    const isValid = hashDiff === 0;
+    const isValid =
+      tokenHash.length === secretHash.length &&
+      tokenHash.every((byte, i) => byte === secretHash[i]);
     if (!isValid) {
       const error = errors.unauthorized("Invalid token");
       return new Response(JSON.stringify(errorToObject(error)), {

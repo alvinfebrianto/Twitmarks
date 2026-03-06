@@ -23,7 +23,10 @@ export function AddTweetModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const errorForEmbedHtml = error?.toLowerCase().includes("embed_html");
-  const errorForAuth = error?.toLowerCase().includes("unauthorized") || error?.toLowerCase().includes("token") || error?.toLowerCase().includes("auth");
+  const errorForAuth =
+    error?.toLowerCase().includes("unauthorized") ||
+    error?.toLowerCase().includes("token") ||
+    error?.toLowerCase().includes("auth");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
