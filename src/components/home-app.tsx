@@ -149,11 +149,12 @@ export default function App() {
   }, [loadTweets]);
 
   useEffect(() => {
-    if (tweets.length === 0) {
+    const gridElement = gridRef.current;
+    if (tweets.length === 0 || !gridElement) {
       return;
     }
     const frame = requestAnimationFrame(() => {
-      window.twttr?.widgets?.load?.();
+      window.twttr?.widgets?.load?.(gridElement);
     });
     return () => cancelAnimationFrame(frame);
   }, [tweets]);
