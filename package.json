@@ -3,10 +3,16 @@
     "@astrojs/check": "^0.9.6",
     "@astrojs/cloudflare": "^12.6.12",
     "@biomejs/biome": "^2.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitejs/plugin-react": "^5.1.4",
     "agentation": "^2.2.1",
     "astro": "^5.18.0",
+    "jsdom": "^28.1.0",
     "typescript": "^5.9.3",
     "ultracite": "^7.2.4",
+    "vitest": "^4.0.18",
     "wrangler": "^4.68.1"
   },
   "scripts": {
@@ -15,11 +21,13 @@
     "preview": "astro preview",
     "deploy": "wrangler pages deploy dist",
     "db:create": "wrangler d1 create twitmarks-db",
-    "db:init": "wrangler d1 execute twitmarks-db --local --file=schema.sql",
+    "db:init": "wrangler d1 execute twitmarks-db --local --persist-to ./.cache/wrangler --file=schema.sql",
     "db:execute": "wrangler d1 execute twitmarks-db --file=schema.sql",
     "lint:fix": "ultracite fix",
     "check": "astro check",
-    "gates": "npm run lint:fix && npm run check"
+    "gates": "npm run lint:fix && npm run check",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@astrojs/react": "^4.4.2",
