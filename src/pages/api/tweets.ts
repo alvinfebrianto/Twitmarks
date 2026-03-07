@@ -120,27 +120,31 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const nextOrder = await db
-      .prepare(
-        "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_sort_order FROM tweets"
-      )
-      .first<{ next_sort_order: number }>();
-    const sortOrder = nextOrder?.next_sort_order ?? 1;
-
     const result = await db
-      .prepare("INSERT INTO tweets (embed_html, sort_order) VALUES (?, ?)")
-      .bind(sanitizedHtml, sortOrder)
+      .prepare(
+        "INSERT INTO tweets (embed_html, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
+      )
+      .bind(sanitizedHtml)
       .run();
+
+    const tweetId = result.meta?.last_row_id;
+    const createdTweet = tweetId
+      ? await db
+          .prepare("SELECT sort_order FROM tweets WHERE id = ?")
+          .bind(tweetId)
+          .first<{ sort_order: number }>()
+      : null;
+    const sortOrder = createdTweet?.sort_order ?? 1;
 
     log.info({
       tag: "api",
       message: "POST /api/tweets - Tweet created successfully",
-      id: result.meta?.last_row_id,
+      id: tweetId,
     });
 
     return jsonResponse(
       {
-        id: result.meta?.last_row_id,
+        id: tweetId,
         embed_html: sanitizedHtml,
         sort_order: sortOrder,
         success: true,

@@ -65,7 +65,7 @@ describe("POST /api/tweets", () => {
     expect(json.success).toBe(true);
     expect(json.id).toBe(1);
     expect(db.prepare).toHaveBeenCalledWith(
-      "INSERT INTO tweets (embed_html, sort_order) VALUES (?, ?)"
+      "INSERT INTO tweets (embed_html, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
     );
   });
 
