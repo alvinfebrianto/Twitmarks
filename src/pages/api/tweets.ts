@@ -42,6 +42,7 @@ async function verifyAdmin(
 
   let hashDiff = 0;
   for (let i = 0; i < tokenHash.length; i++) {
+    // biome-ignore lint/suspicious/noBitwiseOperators: constant-time comparison requires bitwise XOR and OR
     hashDiff |= tokenHash[i] ^ secretHash[i];
   }
   const isValid = tokenHash.length === secretHash.length && hashDiff === 0;
@@ -90,7 +91,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return authError;
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown> | null;
+    if (!body || typeof body !== "object") {
+      return errorResponse(
+        errors.badRequest("body", "Request body must be a JSON object")
+      );
+    }
     if (!body.embed_html || typeof body.embed_html !== "string") {
       return errorResponse(
         errors.badRequest(
@@ -211,7 +217,12 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return authError;
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown> | null;
+    if (!body || typeof body !== "object") {
+      return errorResponse(
+        errors.badRequest("body", "Request body must be a JSON object")
+      );
+    }
     if (!body.id || typeof body.id !== "number") {
       return errorResponse(
         errors.badRequest("id", "id is required and must be a number")
@@ -267,7 +278,12 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       return authError;
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown> | null;
+    if (!body || typeof body !== "object") {
+      return errorResponse(
+        errors.badRequest("body", "Request body must be a JSON object")
+      );
+    }
     if (!Array.isArray(body.orderedIds) || body.orderedIds.length === 0) {
       return errorResponse(
         errors.badRequest(
