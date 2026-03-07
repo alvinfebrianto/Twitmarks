@@ -90,16 +90,26 @@ export const MagneticButton = ({
 };
 
 const TweetEmbed = ({ tweet }: { tweet: DbTweet }) => {
+  const embedRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!embedRef.current) {
+      return;
+    }
+    embedRef.current.innerHTML = tweet.embed_html;
+    window.twttr?.widgets?.load?.(embedRef.current);
+  }, [tweet.embed_html]);
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
       className="tweet-embed overflow-hidden rounded-[2rem] border border-zinc-200/50 bg-white p-4 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)] transition-shadow duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] dark:border-zinc-800/50 dark:bg-zinc-900 dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.2)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)]"
-      dangerouslySetInnerHTML={{ __html: tweet.embed_html }}
       exit={{ opacity: 0, scale: 0.95 }}
       initial={{ opacity: 0, y: 20 }}
-      layout
+      layout="position"
       transition={{ type: "spring", stiffness: 100, damping: 20 }}
-    />
+    >
+      <div ref={embedRef} />
+    </motion.div>
   );
 };
 
@@ -139,9 +149,14 @@ export default function App() {
   }, [loadTweets]);
 
   useEffect(() => {
-    if (tweets.length > 0) {
-      window.twttr?.widgets?.load?.(gridRef.current ?? undefined);
+    const gridElement = gridRef.current;
+    if (tweets.length === 0 || !gridElement) {
+      return;
     }
+    const frame = requestAnimationFrame(() => {
+      window.twttr?.widgets?.load?.(gridElement);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [tweets]);
 
   useEffect(() => {
@@ -270,7 +285,7 @@ export default function App() {
               >
                 <p className="text-sm">{loadError}</p>
                 <button
-                  className="rounded-full bg-red-100 px-4 py-2 font-medium text-xs text-red-800 transition-colors hover:bg-red-200 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60"
+                  className="rounded-full bg-red-100 px-4 py-2 font-medium text-red-800 text-xs transition-colors hover:bg-red-200 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60"
                   onClick={() => loadTweets()}
                   type="button"
                 >
@@ -317,21 +332,23 @@ export default function App() {
             )}
             {!loading && filteredTweets.length > 0 && (
               <div className="flex items-start gap-6">
-                {masonryColumns.map((column, colIndex) => {
-                  const columnKey = column.map((t) => t.id).join("-");
-                  return (
-                    <div
-                      className="flex flex-1 flex-col gap-6"
-                      key={columnKey || `column-${colIndex}`}
-                    >
-                      <AnimatePresence mode="popLayout">
-                        {column.map((tweet) => (
-                          <TweetEmbed key={tweet.id} tweet={tweet} />
-                        ))}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
+                {masonryColumns
+                  .filter((column) => column.length > 0)
+                  .map((column) => {
+                    const columnKey = column.map((t) => t.id).join("-");
+                    return (
+                      <div
+                        className="flex flex-1 flex-col gap-6"
+                        key={columnKey}
+                      >
+                        <AnimatePresence mode="popLayout">
+                          {column.map((tweet) => (
+                            <TweetEmbed key={tweet.id} tweet={tweet} />
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>

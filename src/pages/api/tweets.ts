@@ -57,9 +57,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     let hashDiff = 0;
     for (let i = 0; i < tokenHash.length; i++) {
+      // biome-ignore lint/suspicious/noBitwiseOperators: constant-time comparison requires bitwise XOR and OR
       hashDiff |= tokenHash[i] ^ secretHash[i];
     }
-    const isValid = hashDiff === 0;
+    const isValid = tokenHash.length === secretHash.length && hashDiff === 0;
     if (!isValid) {
       const error = errors.unauthorized("Invalid token");
       return new Response(JSON.stringify(errorToObject(error)), {
