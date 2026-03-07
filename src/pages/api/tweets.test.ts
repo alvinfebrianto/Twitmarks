@@ -1,16 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
-import { GET, POST } from "./tweets";
+import { DELETE, GET, PATCH, POST } from "./tweets";
 
-function createMockDB(results: unknown[] = []) {
+function createMockDB(
+  results: unknown[] = [],
+  overrides: {
+    changes?: number;
+    firstResult?: unknown;
+  } = {}
+) {
   return {
     prepare: vi.fn().mockReturnValue({
       bind: vi.fn().mockReturnValue({
         run: vi.fn().mockResolvedValue({
-          meta: { last_row_id: 1 },
+          meta: { last_row_id: 1, changes: overrides.changes ?? 1 },
         }),
+        all: vi.fn().mockResolvedValue({ results }),
+        first: vi.fn().mockResolvedValue(overrides.firstResult ?? null),
       }),
       all: vi.fn().mockResolvedValue({ results }),
+      first: vi.fn().mockResolvedValue(overrides.firstResult ?? null),
     }),
+    batch: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -55,7 +65,7 @@ describe("POST /api/tweets", () => {
     expect(json.success).toBe(true);
     expect(json.id).toBe(1);
     expect(db.prepare).toHaveBeenCalledWith(
-      "INSERT INTO tweets (embed_html) VALUES (?)"
+      "INSERT INTO tweets (embed_html, sort_order) VALUES (?, ?)"
     );
   });
 
@@ -163,5 +173,169 @@ describe("GET /api/tweets", () => {
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(json).toEqual(tweets);
+  });
+
+  it("queries with sort_order ordering", async () => {
+    const db = createMockDB([]);
+    const locals = createLocals({ db });
+
+    await GET({ locals } as never);
+
+    expect(db.prepare).toHaveBeenCalledWith(
+      "SELECT * FROM tweets ORDER BY sort_order ASC, id ASC"
+    );
+  });
+});
+
+describe("DELETE /api/tweets", () => {
+  it("deletes an existing tweet and returns 200", async () => {
+    const db = createMockDB([], { changes: 1 });
+    const locals = createLocals({ db });
+    const request = new Request("http://localhost/api/tweets", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: JSON.stringify({ id: 1 }),
+    });
+
+    const response = await DELETE({ request, locals } as never);
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+    expect(json.id).toBe(1);
+  });
+
+  it("returns 401 when auth is missing", async () => {
+    const locals = createLocals();
+    const request = new Request("http://localhost/api/tweets", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: 1 }),
+    });
+
+    const response = await DELETE({ request, locals } as never);
+
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 400 when id is missing", async () => {
+    const locals = createLocals();
+    const request = new Request("http://localhost/api/tweets", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: JSON.stringify({}),
+    });
+
+    const response = await DELETE({ request, locals } as never);
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 404 when tweet does not exist", async () => {
+    const db = createMockDB([], { changes: 0 });
+    const locals = createLocals({ db });
+    const request = new Request("http://localhost/api/tweets", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: JSON.stringify({ id: 999 }),
+    });
+
+    const response = await DELETE({ request, locals } as never);
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("PATCH /api/tweets", () => {
+  it("reorders tweets and returns 200", async () => {
+    const db = createMockDB([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    const locals = createLocals({ db });
+    const request = new Request("http://localhost/api/tweets", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: JSON.stringify({ orderedIds: [3, 1, 2] }),
+    });
+
+    const response = await PATCH({ request, locals } as never);
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+    expect(db.batch).toHaveBeenCalled();
+  });
+
+  it("returns 401 when auth is missing", async () => {
+    const locals = createLocals();
+    const request = new Request("http://localhost/api/tweets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderedIds: [1, 2] }),
+    });
+
+    const response = await PATCH({ request, locals } as never);
+
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 400 when orderedIds is missing", async () => {
+    const locals = createLocals();
+    const request = new Request("http://localhost/api/tweets", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: JSON.stringify({}),
+    });
+
+    const response = await PATCH({ request, locals } as never);
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 when orderedIds has duplicates", async () => {
+    const db = createMockDB([{ id: 1 }, { id: 2 }]);
+    const locals = createLocals({ db });
+    const request = new Request("http://localhost/api/tweets", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: JSON.stringify({ orderedIds: [1, 1] }),
+    });
+
+    const response = await PATCH({ request, locals } as never);
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 when orderedIds does not match DB ids", async () => {
+    const db = createMockDB([{ id: 1 }, { id: 2 }]);
+    const locals = createLocals({ db });
+    const request = new Request("http://localhost/api/tweets", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: JSON.stringify({ orderedIds: [1, 3] }),
+    });
+
+    const response = await PATCH({ request, locals } as never);
+
+    expect(response.status).toBe(400);
   });
 });
