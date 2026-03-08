@@ -289,6 +289,15 @@ describe("PATCH /api/tweets", () => {
     expect(json.success).toBe(true);
     expect(db.batch).toHaveBeenCalledTimes(1);
     expect(db.batch.mock.calls[0][0]).toHaveLength(2);
+
+    const bind = db.prepare.mock.results[0]?.value.bind;
+    const updateBindCalls = bind.mock.calls.filter(
+      (args: unknown[]) => args.length === 2
+    );
+    expect(updateBindCalls).toEqual([
+      [2, 1],
+      [1, 2],
+    ]);
   });
 
   it("returns 401 when auth is missing", async () => {
