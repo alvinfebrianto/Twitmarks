@@ -23,7 +23,6 @@
     "db:create": "wrangler d1 create twitmarks-db",
     "db:init": "wrangler d1 execute twitmarks-db --local --persist-to ./.cache/wrangler --file=schema.sql",
     "db:execute": "wrangler d1 execute twitmarks-db --file=schema.sql",
-    "db:migrate": "wrangler d1 execute twitmarks-db --file=migrations/001_add_sort_order.sql",
     "lint:fix": "ultracite fix",
     "check": "astro check",
     "gates": "npm run lint:fix && npm run check",
