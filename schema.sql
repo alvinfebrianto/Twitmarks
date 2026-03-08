@@ -1,5 +1,8 @@
 CREATE TABLE IF NOT EXISTS tweets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   embed_html TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_tweets_sort_order ON tweets(sort_order);

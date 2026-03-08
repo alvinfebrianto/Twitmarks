@@ -8,11 +8,13 @@ describe("HomeApp types", () => {
       embed_html:
         '<blockquote class="twitter-tweet"><p>Hello world</p></blockquote>',
       created_at: "2025-03-01T00:00:00Z",
+      sort_order: 1,
     };
 
     expect(apiResponse.id).toBe(1);
     expect(apiResponse.embed_html).toContain("twitter-tweet");
     expect(apiResponse.created_at).toBeTruthy();
+    expect(apiResponse.sort_order).toBe(1);
   });
 
   it("DbTweet array can be sorted by created_at", () => {
@@ -21,11 +23,13 @@ describe("HomeApp types", () => {
         id: 1,
         embed_html: "<blockquote>old</blockquote>",
         created_at: "2025-01-01T00:00:00Z",
+        sort_order: 1,
       },
       {
         id: 2,
         embed_html: "<blockquote>new</blockquote>",
         created_at: "2025-03-01T00:00:00Z",
+        sort_order: 2,
       },
     ];
 
@@ -45,12 +49,14 @@ describe("HomeApp types", () => {
         embed_html:
           '<blockquote class="twitter-tweet"><p>Hello world</p></blockquote>',
         created_at: "2025-03-01T00:00:00Z",
+        sort_order: 1,
       },
       {
         id: 2,
         embed_html:
           '<blockquote class="twitter-tweet"><p>Goodbye moon</p></blockquote>',
         created_at: "2025-03-01T00:00:00Z",
+        sort_order: 2,
       },
     ];
 
