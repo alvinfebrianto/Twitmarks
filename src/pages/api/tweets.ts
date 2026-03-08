@@ -270,7 +270,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
 
     log.info({
       tag: "api",
-      message: "PATCH /api/tweets - Processing reorder request",
+      message: "PATCH /api/tweets - Processing swap request",
     });
 
     if (!db) {
@@ -288,69 +288,59 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
         errors.badRequest("body", "Request body must be a JSON object")
       );
     }
-    if (!Array.isArray(body.orderedIds) || body.orderedIds.length === 0) {
+
+    if (typeof body.movedId !== "number" || typeof body.targetId !== "number") {
       return errorResponse(
         errors.badRequest(
-          "orderedIds",
-          "orderedIds is required and must be a non-empty array"
+          "movedId/targetId",
+          "movedId and targetId are required and must be numbers"
         )
       );
     }
 
-    const orderedIds = body.orderedIds as number[];
-
-    if (!orderedIds.every((id) => Number.isInteger(id))) {
-      return errorResponse(
-        errors.badRequest("orderedIds", "All IDs must be integers")
-      );
-    }
-
-    const uniqueIds = new Set(orderedIds);
-    if (uniqueIds.size !== orderedIds.length) {
+    if (body.movedId === body.targetId) {
       return errorResponse(
         errors.badRequest(
-          "orderedIds",
-          "orderedIds must not contain duplicates"
+          "movedId/targetId",
+          "movedId and targetId must be different"
         )
       );
     }
 
-    const existing = await db
-      .prepare("SELECT id FROM tweets ORDER BY sort_order ASC, id ASC")
-      .all<{ id: number }>();
-    const dbIds = new Set(
-      (existing.results ?? []).map((r: { id: number }) => r.id)
-    );
+    const [movedTweet, targetTweet] = await Promise.all([
+      db
+        .prepare("SELECT sort_order FROM tweets WHERE id = ?")
+        .bind(body.movedId)
+        .first<{ sort_order: number }>(),
+      db
+        .prepare("SELECT sort_order FROM tweets WHERE id = ?")
+        .bind(body.targetId)
+        .first<{ sort_order: number }>(),
+    ]);
 
-    if (
-      uniqueIds.size !== dbIds.size ||
-      !orderedIds.every((id) => dbIds.has(id))
-    ) {
-      return errorResponse(
-        errors.badRequest(
-          "orderedIds",
-          "orderedIds must match the full set of tweet IDs"
-        )
-      );
+    if (!(movedTweet && targetTweet)) {
+      return errorResponse(errors.notFound("tweet"));
     }
 
-    await db.batch(
-      orderedIds.map((id, index) =>
-        db
-          .prepare("UPDATE tweets SET sort_order = ? WHERE id = ?")
-          .bind(index + 1, id)
-      )
-    );
+    await db.batch([
+      db
+        .prepare("UPDATE tweets SET sort_order = ? WHERE id = ?")
+        .bind(targetTweet.sort_order, body.movedId),
+      db
+        .prepare("UPDATE tweets SET sort_order = ? WHERE id = ?")
+        .bind(movedTweet.sort_order, body.targetId),
+    ]);
 
     log.info({
       tag: "api",
-      message: "PATCH /api/tweets - Reorder complete",
-      count: orderedIds.length,
+      message: "PATCH /api/tweets - Swap complete",
+      movedId: body.movedId,
+      targetId: body.targetId,
     });
 
     return jsonResponse({ success: true });
   } catch (error) {
-    const evlogError = ensureEvlogError(error, "Failed to reorder tweets");
+    const evlogError = ensureEvlogError(error, "Failed to swap tweets");
     log.error({
       tag: "api",
       message: "PATCH /api/tweets - Error",
