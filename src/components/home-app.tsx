@@ -276,14 +276,14 @@ export default function App() {
     setIsAdminPromptOpen(false);
   };
 
-  const lockAdmin = () => {
+  const lockAdmin = useCallback(() => {
     try {
       sessionStorage.removeItem("twitmarks_admin");
     } catch {
       // sessionStorage may be unavailable
     }
     setAdminSecret("");
-  };
+  }, []);
 
   const showReorderControls =
     isAdmin && canReorder({ sortOption, searchQuery, dateFilter });
@@ -396,14 +396,19 @@ export default function App() {
 
         if (!res.ok) {
           setTweets(snapshot);
-          setMutationError("Failed to delete tweet. Please try again.");
+          if (res.status === 401) {
+            lockAdmin();
+            setMutationError("Admin session expired. Please unlock again.");
+          } else {
+            setMutationError("Failed to delete tweet. Please try again.");
+          }
         }
       } catch {
         setTweets(snapshot);
         setMutationError("Failed to delete tweet. Please try again.");
       }
     },
-    [tweets, adminSecret]
+    [tweets, adminSecret, lockAdmin]
   );
 
   const handleReorder = useCallback(
@@ -427,14 +432,19 @@ export default function App() {
 
         if (!res.ok) {
           setTweets(snapshot);
-          setMutationError("Failed to reorder. Please try again.");
+          if (res.status === 401) {
+            lockAdmin();
+            setMutationError("Admin session expired. Please unlock again.");
+          } else {
+            setMutationError("Failed to reorder. Please try again.");
+          }
         }
       } catch {
         setTweets(snapshot);
         setMutationError("Failed to reorder. Please try again.");
       }
     },
-    [tweets, adminSecret]
+    [tweets, adminSecret, lockAdmin]
   );
 
   return (
