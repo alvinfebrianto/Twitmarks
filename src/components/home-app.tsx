@@ -241,6 +241,7 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [cols, setCols] = useState(3);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -380,6 +381,7 @@ export default function App() {
   const handleDelete = useCallback(
     async (tweetId: number) => {
       const snapshot = [...tweets];
+      setMutationError(null);
       setTweets((prev) => prev.filter((t) => t.id !== tweetId));
 
       try {
@@ -394,11 +396,11 @@ export default function App() {
 
         if (!res.ok) {
           setTweets(snapshot);
-          setLoadError("Failed to delete tweet. Please try again.");
+          setMutationError("Failed to delete tweet. Please try again.");
         }
       } catch {
         setTweets(snapshot);
-        setLoadError("Failed to delete tweet. Please try again.");
+        setMutationError("Failed to delete tweet. Please try again.");
       }
     },
     [tweets, adminSecret]
@@ -407,6 +409,7 @@ export default function App() {
   const handleReorder = useCallback(
     async (tweetId: number, direction: "up" | "down") => {
       const snapshot = [...tweets];
+      setMutationError(null);
       const reordered = moveTweet(tweets, tweetId, direction);
       setTweets(reordered);
 
@@ -424,11 +427,11 @@ export default function App() {
 
         if (!res.ok) {
           setTweets(snapshot);
-          setLoadError("Failed to reorder. Please try again.");
+          setMutationError("Failed to reorder. Please try again.");
         }
       } catch {
         setTweets(snapshot);
-        setLoadError("Failed to reorder. Please try again.");
+        setMutationError("Failed to reorder. Please try again.");
       }
     },
     [tweets, adminSecret]
@@ -544,6 +547,22 @@ export default function App() {
                   type="button"
                 >
                   Retry
+                </button>
+              </motion.div>
+            )}
+            {!loading && mutationError && (
+              <motion.div
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+                initial={{ opacity: 0, y: 8 }}
+              >
+                <p className="text-sm">{mutationError}</p>
+                <button
+                  className="rounded-full bg-red-100 px-4 py-2 font-medium text-red-800 text-xs transition-colors hover:bg-red-200 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60"
+                  onClick={() => setMutationError(null)}
+                  type="button"
+                >
+                  Dismiss
                 </button>
               </motion.div>
             )}
