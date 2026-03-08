@@ -337,8 +337,11 @@ export default function App({
     }
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: initialTweets is a prop default captured once at mount
   useEffect(() => {
-    loadTweets();
+    if (initialTweets.length === 0) {
+      loadTweets();
+    }
   }, [loadTweets]);
 
   useEffect(() => {
