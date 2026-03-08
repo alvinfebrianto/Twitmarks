@@ -287,10 +287,8 @@ describe("PATCH /api/tweets", () => {
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(json.success).toBe(true);
-    expect(db.batch).toHaveBeenCalledWith([
-      expect.objectContaining({}),
-      expect.objectContaining({}),
-    ]);
+    expect(db.batch).toHaveBeenCalledTimes(1);
+    expect(db.batch.mock.calls[0][0]).toHaveLength(2);
   });
 
   it("returns 401 when auth is missing", async () => {
@@ -315,6 +313,22 @@ describe("PATCH /api/tweets", () => {
         Authorization: "Bearer test-secret",
       },
       body: JSON.stringify({}),
+    });
+
+    const response = await PATCH({ request, locals } as never);
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 when movedId or targetId is not an integer", async () => {
+    const locals = createLocals();
+    const request = new Request("http://localhost/api/tweets", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: JSON.stringify({ movedId: 1.5, targetId: 2 }),
     });
 
     const response = await PATCH({ request, locals } as never);

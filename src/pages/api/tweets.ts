@@ -227,9 +227,9 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
         errors.badRequest("body", "Request body must be a JSON object")
       );
     }
-    if (!body.id || typeof body.id !== "number") {
+    if (!Number.isInteger(body.id) || (body.id as number) < 1) {
       return errorResponse(
-        errors.badRequest("id", "id is required and must be a number")
+        errors.badRequest("id", "id is required and must be a positive integer")
       );
     }
 
@@ -289,11 +289,15 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    if (typeof body.movedId !== "number" || typeof body.targetId !== "number") {
+    if (
+      !(Number.isInteger(body.movedId) && Number.isInteger(body.targetId)) ||
+      (body.movedId as number) < 1 ||
+      (body.targetId as number) < 1
+    ) {
       return errorResponse(
         errors.badRequest(
           "movedId/targetId",
-          "movedId and targetId are required and must be numbers"
+          "movedId and targetId are required and must be positive integers"
         )
       );
     }
