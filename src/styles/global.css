@@ -50,4 +50,11 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  .tweet-embed iframe {
+    display: block !important;
+    width: 100% !important;
+    margin-top: -13px !important;
+    margin-bottom: -13px !important;
+  }
 }

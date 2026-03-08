@@ -99,6 +99,7 @@ export const MagneticButton = ({
 const TweetEmbed = ({
   tweet,
   isAdmin,
+  isDark,
   showReorder,
   isFirst,
   isLast,
@@ -108,6 +109,7 @@ const TweetEmbed = ({
 }: {
   tweet: DbTweet;
   isAdmin: boolean;
+  isDark: boolean;
   showReorder: boolean;
   isFirst: boolean;
   isLast: boolean;
@@ -123,19 +125,23 @@ const TweetEmbed = ({
       return;
     }
     embedRef.current.innerHTML = tweet.embed_html;
+    const blockquote = embedRef.current.querySelector("blockquote");
+    if (blockquote) {
+      blockquote.setAttribute("data-theme", isDark ? "dark" : "light");
+    }
     window.twttr?.widgets?.load?.(embedRef.current);
-  }, [tweet.embed_html]);
+  }, [tweet.embed_html, isDark]);
 
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
-      className="tweet-embed group relative overflow-hidden rounded-[2rem] border border-zinc-200/50 bg-white p-4 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)] transition-shadow duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] dark:border-zinc-800/50 dark:bg-zinc-900 dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.2)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)]"
+      className="tweet-embed group relative overflow-hidden rounded-xl border border-zinc-200/60 bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-shadow duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.18)] dark:border-zinc-800/60 dark:bg-zinc-950 dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.55)]"
       exit={{ opacity: 0, scale: 0.95 }}
       initial={{ opacity: 0, y: 20 }}
       layout="position"
       transition={{ type: "spring", stiffness: 100, damping: 20 }}
     >
-      <div ref={embedRef} />
+      <div className="[&>blockquote]:m-0" ref={embedRef} />
 
       {isAdmin && (
         <AnimatePresence>
@@ -243,6 +249,11 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [cols, setCols] = useState(3);
+  const [isDark, setIsDark] = useState(
+    () =>
+      typeof document !== "undefined" &&
+      document.documentElement.classList.contains("dark")
+  );
   const gridRef = useRef<HTMLDivElement>(null);
 
   const [adminSecret, setAdminSecret] = useState(() => {
@@ -336,6 +347,17 @@ export default function App() {
     return () => window.removeEventListener("resize", updateCols);
   }, []);
 
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
   const filteredTweets = useMemo(() => {
     let result = [...tweets];
 
@@ -371,9 +393,13 @@ export default function App() {
   }, [tweets, searchQuery, dateFilter, sortOption]);
 
   const masonryColumns = useMemo(() => {
-    const columns: DbTweet[][] = Array.from({ length: cols }, () => []);
+    const effectiveCols = Math.min(cols, filteredTweets.length || 1);
+    const columns: DbTweet[][] = Array.from(
+      { length: effectiveCols },
+      () => []
+    );
     filteredTweets.forEach((tweet, i) => {
-      columns[i % cols].push(tweet);
+      columns[i % effectiveCols].push(tweet);
     });
     return columns;
   }, [filteredTweets, cols]);
@@ -614,17 +640,21 @@ export default function App() {
               </motion.div>
             )}
             {!loading && filteredTweets.length > 0 && (
-              <div className="flex items-start gap-6">
+              <div className="flex items-start justify-center gap-6">
                 {masonryColumns
                   .filter((column) => column.length > 0)
                   .map((column) => {
                     const colKey = column.map((t) => t.id).join("-");
                     return (
-                      <div className="flex flex-1 flex-col gap-6" key={colKey}>
+                      <div
+                        className="flex w-full max-w-[550px] flex-col gap-6"
+                        key={colKey}
+                      >
                         <AnimatePresence mode="popLayout">
                           {column.map((tweet) => (
                             <TweetEmbed
                               isAdmin={isAdmin}
+                              isDark={isDark}
                               isFirst={filteredTweets[0]?.id === tweet.id}
                               isLast={filteredTweets.at(-1)?.id === tweet.id}
                               key={tweet.id}

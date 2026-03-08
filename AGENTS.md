@@ -6,7 +6,7 @@ You are on bash/pwsh on Windows.
 
 ## Always-apply rules
 
-- Run `npm.cmd run gates` after making changes.
+- Run `npm.cmd run lint:fix` after making changes.
 
 ## Documentation
 
