@@ -475,31 +475,31 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] bg-zinc-50 font-sans text-zinc-950 selection:bg-accent selection:text-white dark:bg-zinc-950 dark:text-zinc-50">
-      <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 px-4 py-4">
+      <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 px-4 py-3">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between">
-          <div className="glass-panel pointer-events-auto flex items-center gap-3 rounded-full px-6 py-3">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-zinc-950 dark:bg-zinc-100">
+          <div className="glass-panel pointer-events-auto flex items-center gap-2.5 rounded-full px-4 py-2">
+            <div className="flex h-5 w-5 items-center justify-center rounded-md bg-zinc-950 dark:bg-zinc-100">
               <TwitterLogo
                 aria-hidden="true"
-                className="h-4 w-4 text-white dark:text-zinc-950"
+                className="h-3.5 w-3.5 text-white dark:text-zinc-950"
                 weight="fill"
               />
             </div>
-            <span className="font-bold font-display text-lg tracking-tight dark:text-zinc-50">
+            <span className="font-bold font-display text-base tracking-tight dark:text-zinc-50">
               Twitmarks
             </span>
           </div>
 
-          <div className="pointer-events-auto flex items-center gap-3">
+          <div className="pointer-events-auto flex items-center gap-2">
             <ThemeToggle />
 
             <MagneticButton
               aria-label={isAdmin ? "Lock admin" : "Unlock admin"}
               className={cn(
-                "glass-panel flex h-12 w-12 items-center justify-center rounded-full",
+                "glass-panel flex h-9 w-9 items-center justify-center rounded-full",
                 isAdmin
                   ? "text-accent dark:text-accent"
-                  : "text-zinc-950 dark:text-zinc-100"
+                  : "text-zinc-700 dark:text-zinc-300"
               )}
               onClick={() => {
                 if (isAdmin) {
@@ -513,13 +513,13 @@ export default function App() {
               {isAdmin ? (
                 <LockSimpleOpen
                   aria-hidden="true"
-                  className="h-5 w-5"
+                  className="h-4 w-4"
                   weight="bold"
                 />
               ) : (
                 <LockSimple
                   aria-hidden="true"
-                  className="h-5 w-5"
+                  className="h-4 w-4"
                   weight="bold"
                 />
               )}
@@ -527,24 +527,24 @@ export default function App() {
 
             <MagneticButton
               aria-label="Open filters"
-              className="glass-panel flex h-12 w-12 items-center justify-center rounded-full text-zinc-950 dark:text-zinc-100"
+              className="glass-panel flex h-9 w-9 items-center justify-center rounded-full text-zinc-700 dark:text-zinc-300"
               onClick={() => setIsFilterDrawerOpen(true)}
               type="button"
             >
               <MagnifyingGlass
                 aria-hidden="true"
-                className="h-5 w-5"
+                className="h-4 w-4"
                 weight="bold"
               />
             </MagneticButton>
 
             <MagneticButton
               aria-label="Add new tweet"
-              className="gap-2 rounded-full bg-zinc-950 px-6 py-3 font-medium text-sm text-white shadow-xl shadow-zinc-950/20 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/20"
+              className="gap-1.5 rounded-full bg-zinc-950 px-4 py-2 font-medium text-xs text-white shadow-lg shadow-zinc-950/15 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/15"
               onClick={() => setIsAddModalOpen(true)}
               type="button"
             >
-              <Plus aria-hidden="true" className="h-4 w-4" weight="bold" />
+              <Plus aria-hidden="true" className="h-3.5 w-3.5" weight="bold" />
               <span>Add Tweet</span>
             </MagneticButton>
           </div>
