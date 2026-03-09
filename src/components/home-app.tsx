@@ -899,6 +899,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
 
       <AddTweetModal
         error={addError}
+        initialSecret={adminSecret}
         isOpen={isAddModalOpen}
         onClose={() => {
           setIsAddModalOpen(false);
