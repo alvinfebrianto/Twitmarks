@@ -251,15 +251,12 @@ const TweetEmbed = ({
   );
 };
 
-export default function App({
-  initialTweets = [],
-}: {
-  initialTweets?: DbTweet[];
-}) {
+export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
+  const needsClientLoad = initialTweets == null;
   const [tweets, setTweets] = useState<UiTweet[]>(() =>
-    initialTweets.map(normalizeTweet)
+    (initialTweets ?? []).map(normalizeTweet)
   );
-  const [loading, setLoading] = useState(initialTweets.length === 0);
+  const [loading, setLoading] = useState(needsClientLoad);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("All Time");
   const [sortOption, setSortOption] = useState("Newest");
@@ -337,9 +334,9 @@ export default function App({
     }
   }, []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: initialTweets is a prop default captured once at mount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: needsClientLoad is captured once at mount
   useEffect(() => {
-    if (initialTweets.length === 0) {
+    if (needsClientLoad) {
       loadTweets();
     }
   }, [loadTweets]);
