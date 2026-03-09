@@ -169,7 +169,7 @@ const TweetEmbed = ({
       {isAdmin && isSelectionMode && (
         <label className="absolute top-3 left-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center">
           <input
-            aria-label="Select tweet"
+            aria-label={`Select tweet ${tweet.id}`}
             checked={isSelected}
             className="sr-only"
             onChange={() => onToggleSelect(tweet.id)}
@@ -373,6 +373,13 @@ const BulkActionBar = ({
   );
 };
 
+function pruneSelectedIds(
+  prev: Set<number>,
+  visibleIds: Set<number>
+): Set<number> {
+  return new Set([...prev].filter((id) => visibleIds.has(id)));
+}
+
 export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const needsClientLoad = initialTweets == null;
   const [tweets, setTweets] = useState<UiTweet[]>(() =>
@@ -562,6 +569,11 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
 
     return result;
   }, [tweets, searchQuery, dateFilter, sortOption]);
+
+  useEffect(() => {
+    const visibleIds = new Set(filteredTweets.map((t) => t.id));
+    setSelectedIds((prev) => pruneSelectedIds(prev, visibleIds));
+  }, [filteredTweets]);
 
   const masonryColumns = useMemo(() => {
     const effectiveCols = Math.min(cols, filteredTweets.length || 1);
