@@ -376,6 +376,33 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (!isFilterDrawerOpen) {
+      return;
+    }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsFilterDrawerOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isFilterDrawerOpen]);
+
+  useEffect(() => {
+    if (!isAdminPromptOpen) {
+      return;
+    }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsAdminPromptOpen(false);
+        setAdminInput("");
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isAdminPromptOpen]);
+
   const filteredTweets = useMemo(() => {
     let result = [...tweets];
 
@@ -707,13 +734,19 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
             />
             <motion.div
               animate={{ y: 0, opacity: 1 }}
+              aria-labelledby="filter-modal-title"
+              aria-modal={true}
               className="fixed inset-x-4 top-[8%] z-[70] mx-auto flex max-h-[85vh] max-w-lg flex-col overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
               exit={{ y: 20, opacity: 0 }}
               initial={{ y: 20, opacity: 0 }}
+              role="dialog"
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div className="flex items-center justify-between border-zinc-100 border-b px-8 py-5 dark:border-zinc-800">
-                <h2 className="font-display font-semibold text-2xl dark:text-zinc-50">
+                <h2
+                  className="font-display font-semibold text-2xl dark:text-zinc-50"
+                  id="filter-modal-title"
+                >
                   Filters
                 </h2>
                 <button
@@ -855,13 +888,19 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
             />
             <motion.div
               animate={{ y: 0, opacity: 1 }}
+              aria-labelledby="admin-modal-title"
+              aria-modal={true}
               className="fixed inset-x-4 top-[20%] z-[70] mx-auto max-w-sm overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
               exit={{ y: 20, opacity: 0 }}
               initial={{ y: 20, opacity: 0 }}
+              role="dialog"
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div className="flex items-center justify-between border-zinc-100 border-b px-6 py-4 dark:border-zinc-800">
-                <h2 className="font-display font-semibold text-lg dark:text-zinc-50">
+                <h2
+                  className="font-display font-semibold text-lg dark:text-zinc-50"
+                  id="admin-modal-title"
+                >
                   Admin Access
                 </h2>
                 <button
