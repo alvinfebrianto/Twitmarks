@@ -2,11 +2,12 @@
 
 import { X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "../lib/utils";
 
 interface AddTweetModalProps {
   error?: string | null;
+  initialSecret?: string;
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (embedHtml: string, adminSecret: string) => Promise<void> | void;
@@ -14,6 +15,7 @@ interface AddTweetModalProps {
 
 export function AddTweetModal({
   error,
+  initialSecret,
   isOpen,
   onClose,
   onSubmit,
@@ -21,6 +23,12 @@ export function AddTweetModal({
   const [embedHtml, setEmbedHtml] = useState("");
   const [adminSecret, setAdminSecret] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && initialSecret) {
+      setAdminSecret(initialSecret);
+    }
+  }, [isOpen, initialSecret]);
 
   const errorForEmbedHtml = error?.toLowerCase().includes("embed_html");
   const errorForAuth =

@@ -105,6 +105,53 @@ describe("AddTweetModal", () => {
     expect(submitButton).toBeDisabled();
   });
 
+  it("pre-fills admin secret from initialSecret when modal opens", () => {
+    render(
+      <AddTweetModal
+        initialSecret="saved-secret"
+        isOpen={true}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText("Admin Secret")).toHaveValue("saved-secret");
+  });
+
+  it("re-fills admin secret when modal reopens with initialSecret", async () => {
+    const onClose = vi.fn();
+    const { user, rerender } = renderWithUser(
+      <AddTweetModal
+        initialSecret="saved-secret"
+        isOpen={true}
+        onClose={onClose}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByLabelText("Close modal"));
+
+    rerender(
+      <AddTweetModal
+        initialSecret="saved-secret"
+        isOpen={false}
+        onClose={onClose}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    rerender(
+      <AddTweetModal
+        initialSecret="saved-secret"
+        isOpen={true}
+        onClose={onClose}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText("Admin Secret")).toHaveValue("saved-secret");
+  });
+
   it("preserves form values when submission fails", async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error("Unauthorized"));
     const { user } = renderWithUser(
