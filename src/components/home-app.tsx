@@ -14,7 +14,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { Agentation } from "agentation";
-import { isAfter, subDays } from "date-fns";
+
 import {
   AnimatePresence,
   motion,
@@ -35,6 +35,19 @@ export interface DbTweet {
   sort_order: number;
 }
 
+interface UiTweet extends DbTweet {
+  createdAtMs: number;
+  searchBlob: string;
+}
+
+function normalizeTweet(tweet: DbTweet): UiTweet {
+  return {
+    ...tweet,
+    createdAtMs: new Date(tweet.created_at).getTime(),
+    searchBlob: tweet.embed_html.toLowerCase(),
+  };
+}
+
 declare global {
   interface Window {
     twttr?: { widgets?: { load?: (el?: HTMLElement) => void } };
@@ -43,6 +56,8 @@ declare global {
 
 const SORTS = ["Manual", "Newest", "Oldest"];
 const DATES = ["All Time", "This Week", "This Month"];
+
+const springConfig = { damping: 15, stiffness: 150, mass: 0.1 };
 
 export const MagneticButton = ({
   children,
@@ -60,7 +75,6 @@ export const MagneticButton = ({
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
-  const springConfig = { damping: 15, stiffness: 150, mass: 0.1 };
   const springX = useSpring(x, springConfig);
   const springY = useSpring(y, springConfig);
 
@@ -237,9 +251,12 @@ const TweetEmbed = ({
   );
 };
 
-export default function App() {
-  const [tweets, setTweets] = useState<DbTweet[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
+  const needsClientLoad = initialTweets == null;
+  const [tweets, setTweets] = useState<UiTweet[]>(() =>
+    (initialTweets ?? []).map(normalizeTweet)
+  );
+  const [loading, setLoading] = useState(needsClientLoad);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("All Time");
   const [sortOption, setSortOption] = useState("Newest");
@@ -309,7 +326,7 @@ export default function App() {
         return;
       }
       const data = (await res.json()) as DbTweet[];
-      setTweets(data);
+      setTweets(data.map(normalizeTweet));
     } catch {
       setLoadError("Failed to load tweets. Please refresh.");
     } finally {
@@ -317,34 +334,35 @@ export default function App() {
     }
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: needsClientLoad is captured once at mount
   useEffect(() => {
-    loadTweets();
+    if (needsClientLoad) {
+      loadTweets();
+    }
   }, [loadTweets]);
 
   useEffect(() => {
-    const gridElement = gridRef.current;
-    if (tweets.length === 0 || !gridElement) {
-      return;
-    }
-    const frame = requestAnimationFrame(() => {
-      window.twttr?.widgets?.load?.(gridElement);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [tweets]);
-
-  useEffect(() => {
     const updateCols = () => {
-      if (window.innerWidth < 768) {
-        setCols(1);
-      } else if (window.innerWidth < 1024) {
-        setCols(2);
-      } else {
-        setCols(3);
+      const width = window.innerWidth;
+      let next = 3;
+      if (width < 768) {
+        next = 1;
+      } else if (width < 1024) {
+        next = 2;
       }
+      setCols((prev) => (prev === next ? prev : next));
     };
     updateCols();
-    window.addEventListener("resize", updateCols);
-    return () => window.removeEventListener("resize", updateCols);
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(updateCols, 100);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   useEffect(() => {
@@ -363,30 +381,22 @@ export default function App() {
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter((t) => t.embed_html.toLowerCase().includes(q));
+      result = result.filter((t) => t.searchBlob.includes(q));
     }
 
-    const now = new Date();
+    const now = Date.now();
     if (dateFilter === "This Week") {
-      result = result.filter((t) =>
-        isAfter(new Date(t.created_at), subDays(now, 7))
-      );
+      const cutoff = now - 7 * 24 * 60 * 60 * 1000;
+      result = result.filter((t) => t.createdAtMs > cutoff);
     } else if (dateFilter === "This Month") {
-      result = result.filter((t) =>
-        isAfter(new Date(t.created_at), subDays(now, 30))
-      );
+      const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+      result = result.filter((t) => t.createdAtMs > cutoff);
     }
 
     if (sortOption === "Newest") {
-      result.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      result.sort((a, b) => b.createdAtMs - a.createdAtMs);
     } else if (sortOption === "Oldest") {
-      result.sort(
-        (a, b) =>
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
+      result.sort((a, b) => a.createdAtMs - b.createdAtMs);
     }
 
     return result;
@@ -394,7 +404,7 @@ export default function App() {
 
   const masonryColumns = useMemo(() => {
     const effectiveCols = Math.min(cols, filteredTweets.length || 1);
-    const columns: DbTweet[][] = Array.from(
+    const columns: UiTweet[][] = Array.from(
       { length: effectiveCols },
       () => []
     );
@@ -439,6 +449,15 @@ export default function App() {
 
   const handleReorder = useCallback(
     async (tweetId: number, direction: "up" | "down") => {
+      const currentIndex = tweets.findIndex((t) => t.id === tweetId);
+      const targetIndex =
+        direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      const targetId = tweets[targetIndex]?.id;
+
+      if (targetId === undefined) {
+        return;
+      }
+
       const snapshot = [...tweets];
       setMutationError(null);
       const reordered = moveTweet(tweets, tweetId, direction);
@@ -452,7 +471,8 @@ export default function App() {
             Authorization: `Bearer ${adminSecret}`,
           },
           body: JSON.stringify({
-            orderedIds: reordered.map((t) => t.id),
+            movedId: tweetId,
+            targetId,
           }),
         });
 
@@ -540,7 +560,7 @@ export default function App() {
 
             <MagneticButton
               aria-label="Add new tweet"
-              className="gap-1.5 rounded-full bg-zinc-950 px-4 py-2 font-medium text-xs text-white shadow-lg shadow-zinc-950/15 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/15"
+              className="gap-1.5 rounded-full bg-zinc-950 px-4 py-2 font-medium text-white text-xs shadow-lg shadow-zinc-950/15 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/15"
               onClick={() => setIsAddModalOpen(true)}
               type="button"
             >
@@ -643,12 +663,12 @@ export default function App() {
               <div className="flex items-start justify-center gap-6">
                 {masonryColumns
                   .filter((column) => column.length > 0)
-                  .map((column) => {
-                    const colKey = column.map((t) => t.id).join("-");
+                  .map((column, columnIndex) => {
                     return (
                       <div
                         className="flex w-full max-w-[550px] flex-col gap-6"
-                        key={colKey}
+                        // biome-ignore lint/suspicious/noArrayIndexKey: masonry columns are structural containers with stable count
+                        key={columnIndex}
                       >
                         <AnimatePresence mode="popLayout">
                           {column.map((tweet) => (

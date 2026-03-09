@@ -3,6 +3,17 @@ import HomeApp from "../components/home-app";
 import "../styles/global.css";
 
 export const prerender = false;
+
+const db = Astro.locals.runtime.env.DB;
+let initialTweets: Array<{ id: number; embed_html: string; sort_order: number; created_at: string }> | undefined;
+try {
+  const result = await db
+    .prepare("SELECT * FROM tweets ORDER BY sort_order ASC, id ASC")
+    .all();
+  initialTweets = (result.results ?? []) as NonNullable<typeof initialTweets>;
+} catch {
+  // Leave undefined to trigger client-side fallback
+}
 ---
 
 <!DOCTYPE html>
@@ -15,6 +26,9 @@ export const prerender = false;
       name="description"
       content="Your personal gallery of high-signal Twitter embeds. Organized, searchable, and beautifully presented."
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <script
       is:inline
     >
@@ -34,6 +48,6 @@ export const prerender = false;
     ></script>
   </head>
   <body>
-    <HomeApp client:load />
+    <HomeApp client:load initialTweets={initialTweets} />
   </body>
 </html>

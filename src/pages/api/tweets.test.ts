@@ -6,8 +6,20 @@ function createMockDB(
   overrides: {
     changes?: number;
     firstResult?: unknown;
+    firstResults?: unknown[];
   } = {}
 ) {
+  const firstResults = overrides.firstResults ?? [];
+  let firstCallIndex = 0;
+  const firstFn =
+    firstResults.length > 0
+      ? vi.fn().mockImplementation(() => {
+          const result = firstResults[firstCallIndex] ?? null;
+          firstCallIndex++;
+          return Promise.resolve(result);
+        })
+      : vi.fn().mockResolvedValue(overrides.firstResult ?? null);
+
   return {
     prepare: vi.fn().mockReturnValue({
       bind: vi.fn().mockReturnValue({
@@ -15,10 +27,10 @@ function createMockDB(
           meta: { last_row_id: 1, changes: overrides.changes ?? 1 },
         }),
         all: vi.fn().mockResolvedValue({ results }),
-        first: vi.fn().mockResolvedValue(overrides.firstResult ?? null),
+        first: firstFn,
       }),
       all: vi.fn().mockResolvedValue({ results }),
-      first: vi.fn().mockResolvedValue(overrides.firstResult ?? null),
+      first: firstFn,
     }),
     batch: vi.fn().mockResolvedValue([]),
   };
@@ -256,8 +268,10 @@ describe("DELETE /api/tweets", () => {
 });
 
 describe("PATCH /api/tweets", () => {
-  it("reorders tweets and returns 200", async () => {
-    const db = createMockDB([{ id: 1 }, { id: 2 }, { id: 3 }]);
+  it("swaps two tweets and returns 200", async () => {
+    const db = createMockDB([], {
+      firstResults: [{ sort_order: 1 }, { sort_order: 2 }],
+    });
     const locals = createLocals({ db });
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
@@ -265,7 +279,7 @@ describe("PATCH /api/tweets", () => {
         "Content-Type": "application/json",
         Authorization: "Bearer test-secret",
       },
-      body: JSON.stringify({ orderedIds: [3, 1, 2] }),
+      body: JSON.stringify({ movedId: 1, targetId: 2 }),
     });
 
     const response = await PATCH({ request, locals } as never);
@@ -273,7 +287,17 @@ describe("PATCH /api/tweets", () => {
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(json.success).toBe(true);
-    expect(db.batch).toHaveBeenCalled();
+    expect(db.batch).toHaveBeenCalledTimes(1);
+    expect(db.batch.mock.calls[0][0]).toHaveLength(2);
+
+    const bind = db.prepare.mock.results[0]?.value.bind;
+    const updateBindCalls = bind.mock.calls.filter(
+      (args: unknown[]) => args.length === 2
+    );
+    expect(updateBindCalls).toEqual([
+      [2, 1],
+      [1, 2],
+    ]);
   });
 
   it("returns 401 when auth is missing", async () => {
@@ -281,7 +305,7 @@ describe("PATCH /api/tweets", () => {
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderedIds: [1, 2] }),
+      body: JSON.stringify({ movedId: 1, targetId: 2 }),
     });
 
     const response = await PATCH({ request, locals } as never);
@@ -289,7 +313,7 @@ describe("PATCH /api/tweets", () => {
     expect(response.status).toBe(401);
   });
 
-  it("returns 400 when orderedIds is missing", async () => {
+  it("returns 400 when movedId or targetId is missing", async () => {
     const locals = createLocals();
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
@@ -305,16 +329,15 @@ describe("PATCH /api/tweets", () => {
     expect(response.status).toBe(400);
   });
 
-  it("returns 400 when orderedIds has duplicates", async () => {
-    const db = createMockDB([{ id: 1 }, { id: 2 }]);
-    const locals = createLocals({ db });
+  it("returns 400 when movedId or targetId is not an integer", async () => {
+    const locals = createLocals();
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer test-secret",
       },
-      body: JSON.stringify({ orderedIds: [1, 1] }),
+      body: JSON.stringify({ movedId: 1.5, targetId: 2 }),
     });
 
     const response = await PATCH({ request, locals } as never);
@@ -322,8 +345,26 @@ describe("PATCH /api/tweets", () => {
     expect(response.status).toBe(400);
   });
 
-  it("returns 400 when orderedIds does not match DB ids", async () => {
-    const db = createMockDB([{ id: 1 }, { id: 2 }]);
+  it("returns 400 when movedId and targetId are the same", async () => {
+    const locals = createLocals();
+    const request = new Request("http://localhost/api/tweets", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: JSON.stringify({ movedId: 1, targetId: 1 }),
+    });
+
+    const response = await PATCH({ request, locals } as never);
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 404 when one of the IDs does not exist", async () => {
+    const db = createMockDB([], {
+      firstResults: [{ sort_order: 1 }, null],
+    });
     const locals = createLocals({ db });
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
@@ -331,11 +372,11 @@ describe("PATCH /api/tweets", () => {
         "Content-Type": "application/json",
         Authorization: "Bearer test-secret",
       },
-      body: JSON.stringify({ orderedIds: [1, 3] }),
+      body: JSON.stringify({ movedId: 1, targetId: 999 }),
     });
 
     const response = await PATCH({ request, locals } as never);
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(404);
   });
 });
