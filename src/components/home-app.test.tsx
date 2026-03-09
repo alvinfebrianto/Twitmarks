@@ -4,6 +4,8 @@ import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, { type DbTweet } from "./home-app";
 
+const DELETE_SELECTED_RE = /Delete .+ selected/;
+
 describe("HomeApp types", () => {
   it("DbTweet matches the API response shape", () => {
     const apiResponse: DbTweet = {
@@ -123,36 +125,46 @@ describe("multi-select deletion", () => {
     sessionStorage.setItem("twitmarks_admin", "test-secret");
     const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
-    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    expect(
+      screen.getByRole("checkbox", { name: "Select tweet 1" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Select tweet 2" })
+    ).toBeInTheDocument();
   });
 
   it("clicking a checkbox selects the tweet and shows bulk action bar", async () => {
     sessionStorage.setItem("twitmarks_admin", "test-secret");
     const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
-    const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[0]);
-    expect(screen.getByText("1 selected")).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    expect(
+      screen.getByRole("button", { name: "Delete 1 selected tweet" })
+    ).toBeInTheDocument();
   });
 
   it("clicking a selected checkbox deselects it and hides the bar", async () => {
     sessionStorage.setItem("twitmarks_admin", "test-secret");
     const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
-    const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[0]);
-    await user.click(checkboxes[0]);
-    expect(screen.queryByText("1 selected")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: DELETE_SELECTED_RE })
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("select all selects all visible tweets", async () => {
     sessionStorage.setItem("twitmarks_admin", "test-secret");
     const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
-    const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[0]);
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(screen.getByRole("button", { name: "Select all 2" }));
-    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete 2 selected tweets" })
+    ).toBeInTheDocument();
   });
 
   it("bulk delete removes selected tweets optimistically", async () => {
@@ -163,26 +175,77 @@ describe("multi-select deletion", () => {
     );
     const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
-    const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[0]);
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(
       screen.getByRole("button", { name: "Delete 1 selected tweet" })
     );
     await user.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => {
-      expect(screen.queryByText("First tweet content")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("checkbox", { name: "Select tweet 1" })
+      ).not.toBeInTheDocument();
     });
     expect(screen.getByText("Second tweet content")).toBeInTheDocument();
+  });
+
+  it("bulk delete rolls back tweets and shows error on server failure", async () => {
+    sessionStorage.setItem("twitmarks_admin", "test-secret");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500 })
+    );
+    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    await user.click(screen.getByRole("button", { name: "Select tweets" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete 1 selected tweet" })
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(screen.getByText("First tweet content")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("Failed to delete 1 tweet. Please try again.")
+    ).toBeInTheDocument();
+  });
+
+  it("bulk delete locks admin and restores tweet on 401 response", async () => {
+    sessionStorage.setItem("twitmarks_admin", "test-secret");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 401 })
+    );
+    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    await user.click(screen.getByRole("button", { name: "Select tweets" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete 1 selected tweet" })
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(screen.getByText("First tweet content")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("Admin session expired. Please unlock again.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Select tweets" })
+    ).not.toBeInTheDocument();
   });
 
   it("cancelling selection mode resets all state", async () => {
     sessionStorage.setItem("twitmarks_admin", "test-secret");
     const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
-    const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[0]);
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(screen.getByRole("button", { name: "Cancel selection" }));
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(screen.queryByText("1 selected")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("checkbox", { name: "Select tweet 1" })
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: DELETE_SELECTED_RE })
+    ).not.toBeInTheDocument();
   });
 });

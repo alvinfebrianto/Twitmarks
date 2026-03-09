@@ -377,9 +377,14 @@ function pruneSelectedIds(
   prev: Set<number>,
   visibleIds: Set<number>
 ): Set<number> {
-  return new Set([...prev].filter((id) => visibleIds.has(id)));
+  if (prev.size === 0) {
+    return prev;
+  }
+  const next = new Set([...prev].filter((id) => visibleIds.has(id)));
+  return next.size === prev.size ? prev : next;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: main app component with many features
 export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const needsClientLoad = initialTweets == null;
   const [tweets, setTweets] = useState<UiTweet[]>(() =>
