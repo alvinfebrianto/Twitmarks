@@ -134,6 +134,15 @@ describe("AddTweetModal", () => {
     rerender(
       <AddTweetModal
         initialSecret="saved-secret"
+        isOpen={false}
+        onClose={onClose}
+        onSubmit={vi.fn()}
+      />
+    );
+
+    rerender(
+      <AddTweetModal
+        initialSecret="saved-secret"
         isOpen={true}
         onClose={onClose}
         onSubmit={vi.fn()}
