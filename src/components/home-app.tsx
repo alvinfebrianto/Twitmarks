@@ -991,6 +991,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
         {selectionMode && selectedIds.size > 0 && (
           <BulkActionBar
             isConfirming={confirmingBulkDelete}
+            key="bulk-action-bar"
             onCancelConfirm={() => setConfirmingBulkDelete(false)}
             onConfirm={handleBulkDelete}
             onRequestDelete={() => setConfirmingBulkDelete(true)}
