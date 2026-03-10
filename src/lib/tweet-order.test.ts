@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { canReorder, moveTweet, type TweetOrderItem } from "./tweet-order";
 

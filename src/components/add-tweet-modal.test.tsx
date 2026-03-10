@@ -1,8 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AddTweetModal } from "./add-tweet-modal";
+
+beforeAll(() => {
+  cleanup();
+});
+
+afterEach(() => {
+  cleanup();
+});
 
 const renderWithUser = (ui: React.ReactElement) => {
   return {

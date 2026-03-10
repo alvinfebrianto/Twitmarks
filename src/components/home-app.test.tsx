@@ -1,8 +1,25 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+afterEach(() => {
+  cleanup();
+});
+
 import App, { type DbTweet } from "./home-app";
+
+beforeAll(() => {
+  cleanup();
+});
 
 const DELETE_SELECTED_RE = /Delete .+ selected/;
 
