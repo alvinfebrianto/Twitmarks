@@ -43,11 +43,19 @@ interface UiTweet extends DbTweet {
   searchBlob: string;
 }
 
+function extractTextContent(html: string): string {
+  if (typeof DOMParser === "undefined") {
+    return html.replace(/<[^>]*>/g, " ").toLowerCase();
+  }
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return (doc.body.textContent ?? "").toLowerCase();
+}
+
 function normalizeTweet(tweet: DbTweet): UiTweet {
   return {
     ...tweet,
     createdAtMs: new Date(tweet.created_at).getTime(),
-    searchBlob: tweet.embed_html.toLowerCase(),
+    searchBlob: extractTextContent(tweet.embed_html),
   };
 }
 
@@ -58,7 +66,7 @@ declare global {
 }
 
 const SORTS = ["Manual", "Newest", "Oldest"];
-const DATES = ["All Time", "This Week", "This Month"];
+const DATES = ["All Time", "Last 7 Days", "Last 30 Days"];
 
 const springConfig = { damping: 15, stiffness: 150, mass: 0.1 };
 
@@ -561,10 +569,10 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     }
 
     const now = Date.now();
-    if (dateFilter === "This Week") {
+    if (dateFilter === "Last 7 Days") {
       const cutoff = now - 7 * 24 * 60 * 60 * 1000;
       result = result.filter((t) => t.createdAtMs > cutoff);
-    } else if (dateFilter === "This Month") {
+    } else if (dateFilter === "Last 30 Days") {
       const cutoff = now - 30 * 24 * 60 * 60 * 1000;
       result = result.filter((t) => t.createdAtMs > cutoff);
     }
@@ -603,6 +611,10 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
 
   const handleDelete = useCallback(
     async (tweetId: number) => {
+      if (isMutatingRef.current) {
+        return;
+      }
+      isMutatingRef.current = true;
       const snapshot = [...tweets];
       setMutationError(null);
       setTweets((prev) => prev.filter((t) => t.id !== tweetId));
@@ -629,6 +641,8 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       } catch {
         setTweets(snapshot);
         setMutationError("Failed to delete tweet. Please try again.");
+      } finally {
+        isMutatingRef.current = false;
       }
     },
     [tweets, adminSecret, lockAdmin]
@@ -636,12 +650,17 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
 
   const handleReorder = useCallback(
     async (tweetId: number, direction: "up" | "down") => {
+      if (isMutatingRef.current) {
+        return;
+      }
+      isMutatingRef.current = true;
       const currentIndex = tweets.findIndex((t) => t.id === tweetId);
       const targetIndex =
         direction === "up" ? currentIndex - 1 : currentIndex + 1;
       const targetId = tweets[targetIndex]?.id;
 
       if (targetId === undefined) {
+        isMutatingRef.current = false;
         return;
       }
 
@@ -675,11 +694,14 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       } catch {
         setTweets(snapshot);
         setMutationError("Failed to reorder. Please try again.");
+      } finally {
+        isMutatingRef.current = false;
       }
     },
     [tweets, adminSecret, lockAdmin]
   );
 
+  const isMutatingRef = useRef(false);
   const isBulkDeletingRef = useRef(false);
 
   const handleBulkDelete = useCallback(async () => {
@@ -687,6 +709,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       return;
     }
     isBulkDeletingRef.current = true;
+    isMutatingRef.current = true;
     try {
       const idsToDelete = [...selectedIds];
       if (idsToDelete.length === 0) {
@@ -744,6 +767,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
         );
       }
     } finally {
+      isMutatingRef.current = false;
       isBulkDeletingRef.current = false;
     }
   }, [selectedIds, tweets, adminSecret, lockAdmin]);
@@ -1250,7 +1274,9 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
             if (!response.ok) {
               const data = await response.json().catch(() => ({}));
               throw new Error(
-                data.message || `Failed to add tweet: ${response.status}`
+                data.why ??
+                  data.error ??
+                  `Failed to add tweet: ${response.status}`
               );
             }
 

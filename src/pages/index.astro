@@ -8,7 +8,7 @@ const db = Astro.locals.runtime.env.DB;
 let initialTweets: Array<{ id: number; embed_html: string; sort_order: number; created_at: string }> | undefined;
 try {
   const result = await db
-    .prepare("SELECT * FROM tweets ORDER BY sort_order ASC, id ASC")
+    .prepare("SELECT id, embed_html, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC")
     .all();
   initialTweets = (result.results ?? []) as NonNullable<typeof initialTweets>;
 } catch {

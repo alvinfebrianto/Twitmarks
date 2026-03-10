@@ -33,10 +33,22 @@ describe("moveTweet", () => {
     expect(result.map((t) => t.id)).toEqual([1, 2, 3]);
   });
 
-  it("normalizes sort_order values after move", () => {
+  it("swaps sort_order values between the two items", () => {
     const tweets = makeTweets(3);
     const result = moveTweet(tweets, 3, "up");
+    expect(result.map((t) => t.id)).toEqual([1, 3, 2]);
     expect(result.map((t) => t.sort_order)).toEqual([1, 2, 3]);
+  });
+
+  it("preserves sort_order gaps after swap", () => {
+    const tweets: TweetOrderItem[] = [
+      { id: 1, sort_order: 1 },
+      { id: 3, sort_order: 5 },
+      { id: 4, sort_order: 10 },
+    ];
+    const result = moveTweet(tweets, 3, "down");
+    expect(result.map((t) => t.id)).toEqual([1, 4, 3]);
+    expect(result.map((t) => t.sort_order)).toEqual([1, 5, 10]);
   });
 });
 

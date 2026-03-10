@@ -19,11 +19,15 @@ export function moveTweet<T extends TweetOrderItem>(
   }
 
   const result = [...tweets];
+  const movedOrder = result[index].sort_order;
+  const targetOrder = result[targetIndex].sort_order;
+  result[index] = { ...result[index], sort_order: targetOrder };
+  result[targetIndex] = { ...result[targetIndex], sort_order: movedOrder };
   const temp = result[index];
   result[index] = result[targetIndex];
   result[targetIndex] = temp;
 
-  return result.map((t, i) => ({ ...t, sort_order: i + 1 }));
+  return result;
 }
 
 export function canReorder({

@@ -92,8 +92,8 @@ export function sanitize<T extends Record<string, unknown>>(
     "authorization",
     "credential",
   ]
-): Partial<T> {
-  const result = { ...obj };
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...obj };
   for (const key of sensitiveKeys) {
     if (key in result) {
       delete result[key];

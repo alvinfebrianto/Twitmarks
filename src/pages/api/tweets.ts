@@ -71,6 +71,24 @@ function errorResponse(error: { status: number }) {
   });
 }
 
+async function parseJsonBody(
+  request: Request
+): Promise<Record<string, unknown> | Response> {
+  try {
+    const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return errorResponse(
+        errors.badRequest("body", "Request body must be a JSON object")
+      );
+    }
+    return body as Record<string, unknown>;
+  } catch {
+    return errorResponse(
+      errors.badRequest("body", "Request body must be valid JSON")
+    );
+  }
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const db = locals.runtime.env.DB;
@@ -91,12 +109,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return authError;
     }
 
-    const body = (await request.json()) as Record<string, unknown> | null;
-    if (!body || typeof body !== "object") {
-      return errorResponse(
-        errors.badRequest("body", "Request body must be a JSON object")
-      );
+    const bodyOrError = await parseJsonBody(request);
+    if (bodyOrError instanceof Response) {
+      return bodyOrError;
     }
+    const body = bodyOrError;
+
     if (!body.embed_html || typeof body.embed_html !== "string") {
       return errorResponse(
         errors.badRequest(
@@ -108,7 +126,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const sanitizedHtml = DOMPurify.sanitize(body.embed_html, {
       ADD_TAGS: ["twitter-blockquote", "twitter-video"],
-      ADD_ATTR: ["url", "data-theme", "align", "class", "style"],
+      ADD_ATTR: ["url", "data-theme", "align", "class"],
       ALLOWED_URI_REGEXP: ALLOWED_URI_REGEX,
     });
     if (!sanitizedHtml.trim()) {
@@ -130,11 +148,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const tweetId = result.meta?.last_row_id;
     const createdTweet = tweetId
       ? await db
-          .prepare("SELECT sort_order FROM tweets WHERE id = ?")
+          .prepare(
+            "SELECT sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets WHERE id = ?"
+          )
           .bind(tweetId)
-          .first<{ sort_order: number }>()
+          .first<{ sort_order: number; created_at: string }>()
       : null;
     const sortOrder = createdTweet?.sort_order ?? 1;
+    const createdAt = createdTweet?.created_at ?? new Date().toISOString();
 
     log.info({
       tag: "api",
@@ -147,6 +168,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         id: tweetId,
         embed_html: sanitizedHtml,
         sort_order: sortOrder,
+        created_at: createdAt,
         success: true,
       },
       201
@@ -179,7 +201,9 @@ export const GET: APIRoute = async ({ locals }) => {
     }
 
     const result = await db
-      .prepare("SELECT * FROM tweets ORDER BY sort_order ASC, id ASC")
+      .prepare(
+        "SELECT id, embed_html, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
+      )
       .all();
 
     log.info({
@@ -221,12 +245,12 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       return authError;
     }
 
-    const body = (await request.json()) as Record<string, unknown> | null;
-    if (!body || typeof body !== "object") {
-      return errorResponse(
-        errors.badRequest("body", "Request body must be a JSON object")
-      );
+    const bodyOrError = await parseJsonBody(request);
+    if (bodyOrError instanceof Response) {
+      return bodyOrError;
     }
+    const body = bodyOrError;
+
     if (!Number.isInteger(body.id) || (body.id as number) < 1) {
       return errorResponse(
         errors.badRequest("id", "id is required and must be a positive integer")
@@ -282,12 +306,11 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       return authError;
     }
 
-    const body = (await request.json()) as Record<string, unknown> | null;
-    if (!body || typeof body !== "object") {
-      return errorResponse(
-        errors.badRequest("body", "Request body must be a JSON object")
-      );
+    const bodyOrError = await parseJsonBody(request);
+    if (bodyOrError instanceof Response) {
+      return bodyOrError;
     }
+    const body = bodyOrError;
 
     if (
       !(Number.isInteger(body.movedId) && Number.isInteger(body.targetId)) ||
