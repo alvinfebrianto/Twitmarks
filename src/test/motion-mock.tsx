@@ -89,7 +89,10 @@ const cache = new Map<string, ReturnType<typeof createMotionComponent>>();
 export const motion = new Proxy(
   {},
   {
-    get(_: object, tag: string) {
+    get(_: object, tag: string | symbol) {
+      if (typeof tag !== "string") {
+        return undefined;
+      }
       if (!cache.has(tag)) {
         cache.set(tag, createMotionComponent(tag));
       }
