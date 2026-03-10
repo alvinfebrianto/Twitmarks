@@ -337,4 +337,48 @@ describe("multi-select deletion", () => {
       screen.queryByRole("button", { name: DELETE_SELECTED_RE })
     ).not.toBeInTheDocument();
   });
+
+  it("bulk delete sends correct tweet IDs to the delete endpoint", async () => {
+    sessionStorage.setItem("twitmarks_admin", "test-secret");
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal("fetch", fetchMock);
+    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    await user.click(screen.getByRole("button", { name: "Select tweets" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete 1 selected tweet" })
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tweets",
+        expect.objectContaining({
+          method: "DELETE",
+          body: JSON.stringify({ id: 1 }),
+        })
+      );
+    });
+  });
+
+  it("partial filter-prune keeps confirming state and updates count for remaining selected tweets", async () => {
+    sessionStorage.setItem("twitmarks_admin", "test-secret");
+    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    await user.click(screen.getByRole("button", { name: "Select tweets" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    await user.click(screen.getByRole("button", { name: "Select all 2" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete 2 selected tweets" })
+    );
+    await user.click(screen.getByRole("button", { name: "Open filters" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Search tweets" }),
+      "Second"
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Confirm" })
+      ).toBeInTheDocument();
+      expect(screen.getByText("Delete 1 tweet?")).toBeInTheDocument();
+    });
+  });
 });
