@@ -364,7 +364,9 @@ const BulkActionBar = ({
                   className="h-3.5 w-3.5"
                   weight="bold"
                 />
-                <span>Delete {selectedCount}</span>
+                <span>
+                  Delete {selectedCount} tweet{selectedCount !== 1 ? "s" : ""}
+                </span>
               </button>
             </div>
           </>

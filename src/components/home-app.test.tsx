@@ -157,6 +157,7 @@ describe("multi-select deletion", () => {
     expect(
       screen.getByRole("button", { name: "Delete 1 selected tweet" })
     ).toBeInTheDocument();
+    expect(screen.getByText("Delete 1 tweet")).toBeInTheDocument();
   });
 
   it("clicking a selected checkbox deselects it and hides the bar", async () => {
