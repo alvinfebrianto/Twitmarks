@@ -120,6 +120,7 @@ describe("multi-select deletion", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("select button is not visible without admin", () => {

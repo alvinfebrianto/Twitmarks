@@ -20,9 +20,9 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}"],
     // isolate:false + single worker: all test files share one module registry so
     // modules are imported once. Required to prevent per-file jsdom cold-start
-    // overhead on low-end hardware. Tests maintain hygiene via afterEach(cleanup)
-    // and afterEach(vi.restoreAllMocks). Avoid module-level mutable singletons
-    // without an explicit reset mechanism.
+    // overhead on low-end hardware. Tests maintain hygiene via afterEach(cleanup),
+    // afterEach(vi.restoreAllMocks), and afterEach(vi.unstubAllGlobals). Avoid
+    // module-level mutable singletons without an explicit reset mechanism.
     isolate: false,
     pool: "forks",
     maxWorkers: 1,
