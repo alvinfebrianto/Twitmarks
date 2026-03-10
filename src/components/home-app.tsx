@@ -3,6 +3,8 @@
 import {
   ArrowDown,
   ArrowUp,
+  Check,
+  CheckSquare,
   LockSimple,
   LockSimpleOpen,
   MagnifyingGlass,
@@ -24,6 +26,7 @@ import {
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canReorder, moveTweet } from "../lib/tweet-order";
+import { clearSelection, toggleSelectId } from "../lib/tweet-selection";
 import { cn } from "../lib/utils";
 import { AddTweetModal } from "./add-tweet-modal";
 import { ThemeToggle } from "./theme-toggle";
@@ -117,9 +120,12 @@ const TweetEmbed = ({
   showReorder,
   isFirst,
   isLast,
+  isSelectionMode,
+  isSelected,
   onDelete,
   onMoveUp,
   onMoveDown,
+  onToggleSelect,
 }: {
   tweet: DbTweet;
   isAdmin: boolean;
@@ -127,9 +133,12 @@ const TweetEmbed = ({
   showReorder: boolean;
   isFirst: boolean;
   isLast: boolean;
+  isSelectionMode: boolean;
+  isSelected: boolean;
   onDelete: (id: number) => void;
   onMoveUp: (id: number) => void;
   onMoveDown: (id: number) => void;
+  onToggleSelect: (id: number) => void;
 }) => {
   const embedRef = useRef<HTMLDivElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -157,7 +166,31 @@ const TweetEmbed = ({
     >
       <div className="[&>blockquote]:m-0" ref={embedRef} />
 
-      {isAdmin && (
+      {isAdmin && isSelectionMode && (
+        <label className="absolute top-3 left-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center">
+          <input
+            aria-label={`Select tweet ${tweet.id}`}
+            checked={isSelected}
+            className="sr-only"
+            onChange={() => onToggleSelect(tweet.id)}
+            type="checkbox"
+          />
+          <div
+            className={cn(
+              "flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all duration-200",
+              isSelected
+                ? "border-accent bg-accent text-white"
+                : "border-zinc-300 bg-white/90 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-800/90"
+            )}
+          >
+            {isSelected && (
+              <Check aria-hidden="true" className="h-3 w-3" weight="bold" />
+            )}
+          </div>
+        </label>
+      )}
+
+      {isAdmin && !isSelectionMode && (
         <AnimatePresence>
           {confirmingDelete ? (
             <motion.div
@@ -251,6 +284,110 @@ const TweetEmbed = ({
   );
 };
 
+const BulkActionBar = ({
+  selectedCount,
+  totalCount,
+  isConfirming,
+  onSelectAll,
+  onRequestDelete,
+  onConfirm,
+  onCancelConfirm,
+}: {
+  selectedCount: number;
+  totalCount: number;
+  isConfirming: boolean;
+  onSelectAll: () => void;
+  onRequestDelete: () => void;
+  onConfirm: () => void;
+  onCancelConfirm: () => void;
+}) => {
+  const label = `${selectedCount} tweet${selectedCount !== 1 ? "s" : ""}`;
+  return (
+    <motion.div
+      animate={{ y: 0, opacity: 1 }}
+      className="fixed inset-x-4 bottom-8 z-50 mx-auto max-w-sm"
+      exit={{ y: 20, opacity: 0 }}
+      initial={{ y: 20, opacity: 0 }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+    >
+      <div className="glass-panel flex items-center justify-between gap-3 rounded-2xl px-5 py-3.5 dark:border dark:border-zinc-700/50">
+        {isConfirming ? (
+          <>
+            <span className="font-medium text-sm text-zinc-700 dark:text-zinc-300">
+              Delete {label}?
+            </span>
+            <div className="flex gap-2">
+              <button
+                className="rounded-full bg-zinc-100 px-3 py-1.5 font-medium text-xs text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                onClick={onCancelConfirm}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded-full bg-red-600 px-3 py-1.5 font-medium text-white text-xs shadow-sm transition-colors hover:bg-red-700 active:scale-[0.98]"
+                onClick={onConfirm}
+                type="button"
+              >
+                Confirm
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-accent px-2 py-0.5 font-medium text-white text-xs">
+                {selectedCount}
+              </span>
+              <span className="font-medium text-sm text-zinc-700 dark:text-zinc-300">
+                selected
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                aria-label={`Select all ${totalCount}`}
+                className="font-medium text-accent text-xs transition-colors hover:text-accent/80 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={selectedCount === totalCount}
+                onClick={onSelectAll}
+                type="button"
+              >
+                Select all {totalCount}
+              </button>
+              <button
+                aria-label={`Delete ${selectedCount} selected tweet${selectedCount !== 1 ? "s" : ""}`}
+                className="flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 font-medium text-white text-xs shadow-sm transition-colors hover:bg-red-700 active:scale-[0.98]"
+                onClick={onRequestDelete}
+                type="button"
+              >
+                <Trash
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5"
+                  weight="bold"
+                />
+                <span>
+                  Delete {selectedCount} tweet{selectedCount !== 1 ? "s" : ""}
+                </span>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
+function pruneSelectedIds(
+  prev: Set<number>,
+  visibleIds: Set<number>
+): Set<number> {
+  if (prev.size === 0) {
+    return prev;
+  }
+  const next = new Set([...prev].filter((id) => visibleIds.has(id)));
+  return next.size === prev.size ? prev : next;
+}
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: main app component with many features
 export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const needsClientLoad = initialTweets == null;
   const [tweets, setTweets] = useState<UiTweet[]>(() =>
@@ -285,6 +422,10 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const [isAdminPromptOpen, setIsAdminPromptOpen] = useState(false);
   const [adminInput, setAdminInput] = useState("");
 
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(clearSelection);
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
+
   const persistAdminSecret = useCallback((secret: string) => {
     const trimmed = secret.trim();
     if (!trimmed) {
@@ -312,6 +453,14 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     }
     setAdminSecret("");
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setSelectionMode(false);
+      setSelectedIds(clearSelection());
+      setConfirmingBulkDelete(false);
+    }
+  }, [isAdmin]);
 
   const showReorderControls =
     isAdmin && canReorder({ sortOption, searchQuery, dateFilter });
@@ -429,6 +578,17 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     return result;
   }, [tweets, searchQuery, dateFilter, sortOption]);
 
+  useEffect(() => {
+    const visibleIds = new Set(filteredTweets.map((t) => t.id));
+    setSelectedIds((prev) => pruneSelectedIds(prev, visibleIds));
+  }, [filteredTweets]);
+
+  useEffect(() => {
+    if (selectedIds.size === 0) {
+      setConfirmingBulkDelete(false);
+    }
+  }, [selectedIds]);
+
   const masonryColumns = useMemo(() => {
     const effectiveCols = Math.min(cols, filteredTweets.length || 1);
     const columns: UiTweet[][] = Array.from(
@@ -520,6 +680,84 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     [tweets, adminSecret, lockAdmin]
   );
 
+  const isBulkDeletingRef = useRef(false);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (isBulkDeletingRef.current) {
+      return;
+    }
+    isBulkDeletingRef.current = true;
+    try {
+      const idsToDelete = [...selectedIds];
+      if (idsToDelete.length === 0) {
+        return;
+      }
+      const snapshot = [...tweets];
+      setMutationError(null);
+      setTweets((prev) => prev.filter((t) => !selectedIds.has(t.id)));
+      setSelectedIds(clearSelection());
+      setSelectionMode(false);
+      setConfirmingBulkDelete(false);
+
+      const results = await Promise.allSettled(
+        idsToDelete.map((id) =>
+          fetch("/api/tweets", {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${adminSecret}`,
+            },
+            body: JSON.stringify({ id }),
+          })
+        )
+      );
+
+      const tagged = results.map((r, i) => ({ r, id: idsToDelete[i] }));
+      const failed = tagged.filter(
+        ({ r }) => r.status === "rejected" || !r.value.ok
+      );
+      if (failed.length === 0) {
+        return;
+      }
+
+      const failedIds = new Set(failed.map(({ id }) => id));
+      const hadUnauthorized = failed.some(
+        ({ r }) => r.status === "fulfilled" && r.value.status === 401
+      );
+      const failedTweets = snapshot.filter((t) => failedIds.has(t.id));
+      setTweets((prev) =>
+        [...prev, ...failedTweets].sort((a, b) => a.sort_order - b.sort_order)
+      );
+      if (hadUnauthorized) {
+        lockAdmin();
+        const nonAuthCount = failed.filter(
+          ({ r }) => !(r.status === "fulfilled" && r.value.status === 401)
+        ).length;
+        const extra =
+          nonAuthCount > 0
+            ? ` Additionally, ${nonAuthCount} tweet${nonAuthCount !== 1 ? "s" : ""} could not be deleted.`
+            : "";
+        setMutationError(`Admin session expired. Please unlock again.${extra}`);
+      } else {
+        setMutationError(
+          `Failed to delete ${failed.length} tweet${failed.length !== 1 ? "s" : ""}. Please try again.`
+        );
+      }
+    } finally {
+      isBulkDeletingRef.current = false;
+    }
+  }, [selectedIds, tweets, adminSecret, lockAdmin]);
+
+  const toggleSelectionMode = useCallback(() => {
+    if (selectionMode) {
+      setSelectionMode(false);
+      setSelectedIds(clearSelection());
+      setConfirmingBulkDelete(false);
+    } else {
+      setSelectionMode(true);
+    }
+  }, [selectionMode]);
+
   return (
     <div className="min-h-[100dvh] bg-zinc-50 font-sans text-zinc-950 selection:bg-accent selection:text-white dark:bg-zinc-950 dark:text-zinc-50">
       <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 px-4 py-3">
@@ -571,6 +809,28 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
                 />
               )}
             </MagneticButton>
+
+            {isAdmin && (
+              <MagneticButton
+                aria-label={
+                  selectionMode ? "Cancel selection" : "Select tweets"
+                }
+                className={cn(
+                  "glass-panel flex h-9 w-9 items-center justify-center rounded-full",
+                  selectionMode
+                    ? "text-accent dark:text-accent"
+                    : "text-zinc-700 dark:text-zinc-300"
+                )}
+                onClick={toggleSelectionMode}
+                type="button"
+              >
+                <CheckSquare
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                  weight="bold"
+                />
+              </MagneticButton>
+            )}
 
             <MagneticButton
               aria-label="Open filters"
@@ -704,10 +964,17 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
                               isDark={isDark}
                               isFirst={filteredTweets[0]?.id === tweet.id}
                               isLast={filteredTweets.at(-1)?.id === tweet.id}
+                              isSelected={selectedIds.has(tweet.id)}
+                              isSelectionMode={selectionMode}
                               key={tweet.id}
                               onDelete={handleDelete}
                               onMoveDown={(id) => handleReorder(id, "down")}
                               onMoveUp={(id) => handleReorder(id, "up")}
+                              onToggleSelect={(id) =>
+                                setSelectedIds((prev) =>
+                                  toggleSelectId(prev, id)
+                                )
+                              }
                               showReorder={showReorderControls}
                               tweet={tweet}
                             />
@@ -721,6 +988,23 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
           </div>
         </div>
       </main>
+
+      <AnimatePresence>
+        {selectionMode && selectedIds.size > 0 && (
+          <BulkActionBar
+            isConfirming={confirmingBulkDelete}
+            key="bulk-action-bar"
+            onCancelConfirm={() => setConfirmingBulkDelete(false)}
+            onConfirm={handleBulkDelete}
+            onRequestDelete={() => setConfirmingBulkDelete(true)}
+            onSelectAll={() =>
+              setSelectedIds(new Set(filteredTweets.map((t) => t.id)))
+            }
+            selectedCount={selectedIds.size}
+            totalCount={filteredTweets.length}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isFilterDrawerOpen && (
