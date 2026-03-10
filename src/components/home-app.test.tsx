@@ -10,14 +10,13 @@ import {
   it,
   vi,
 } from "vitest";
-
-afterEach(() => {
-  cleanup();
-});
-
 import App, { type DbTweet } from "./home-app";
 
 beforeAll(() => {
+  cleanup();
+});
+
+afterEach(() => {
   cleanup();
 });
 

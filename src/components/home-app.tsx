@@ -678,61 +678,71 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     [tweets, adminSecret, lockAdmin]
   );
 
+  const isBulkDeletingRef = useRef(false);
+
   const handleBulkDelete = useCallback(async () => {
-    const idsToDelete = [...selectedIds];
-    if (idsToDelete.length === 0) {
+    if (isBulkDeletingRef.current) {
       return;
     }
-    const snapshot = [...tweets];
-    setMutationError(null);
-    setTweets((prev) => prev.filter((t) => !selectedIds.has(t.id)));
-    setSelectedIds(clearSelection());
-    setSelectionMode(false);
-    setConfirmingBulkDelete(false);
+    isBulkDeletingRef.current = true;
+    try {
+      const idsToDelete = [...selectedIds];
+      if (idsToDelete.length === 0) {
+        return;
+      }
+      const snapshot = [...tweets];
+      setMutationError(null);
+      setTweets((prev) => prev.filter((t) => !selectedIds.has(t.id)));
+      setSelectedIds(clearSelection());
+      setSelectionMode(false);
+      setConfirmingBulkDelete(false);
 
-    const results = await Promise.allSettled(
-      idsToDelete.map((id) =>
-        fetch("/api/tweets", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminSecret}`,
-          },
-          body: JSON.stringify({ id }),
-        })
-      )
-    );
-
-    const tagged = results.map((r, i) => ({ r, id: idsToDelete[i] }));
-    const failed = tagged.filter(
-      ({ r }) => r.status === "rejected" || !r.value.ok
-    );
-    if (failed.length === 0) {
-      return;
-    }
-
-    const failedIds = new Set(failed.map(({ id }) => id));
-    const hadUnauthorized = failed.some(
-      ({ r }) => r.status === "fulfilled" && r.value.status === 401
-    );
-    const failedTweets = snapshot.filter((t) => failedIds.has(t.id));
-    setTweets((prev) =>
-      [...prev, ...failedTweets].sort((a, b) => a.sort_order - b.sort_order)
-    );
-    if (hadUnauthorized) {
-      lockAdmin();
-      const nonAuthCount = failed.filter(
-        ({ r }) => !(r.status === "fulfilled" && r.value.status === 401)
-      ).length;
-      const extra =
-        nonAuthCount > 0
-          ? ` Additionally, ${nonAuthCount} tweet${nonAuthCount !== 1 ? "s" : ""} could not be deleted.`
-          : "";
-      setMutationError(`Admin session expired. Please unlock again.${extra}`);
-    } else {
-      setMutationError(
-        `Failed to delete ${failed.length} tweet${failed.length !== 1 ? "s" : ""}. Please try again.`
+      const results = await Promise.allSettled(
+        idsToDelete.map((id) =>
+          fetch("/api/tweets", {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${adminSecret}`,
+            },
+            body: JSON.stringify({ id }),
+          })
+        )
       );
+
+      const tagged = results.map((r, i) => ({ r, id: idsToDelete[i] }));
+      const failed = tagged.filter(
+        ({ r }) => r.status === "rejected" || !r.value.ok
+      );
+      if (failed.length === 0) {
+        return;
+      }
+
+      const failedIds = new Set(failed.map(({ id }) => id));
+      const hadUnauthorized = failed.some(
+        ({ r }) => r.status === "fulfilled" && r.value.status === 401
+      );
+      const failedTweets = snapshot.filter((t) => failedIds.has(t.id));
+      setTweets((prev) =>
+        [...prev, ...failedTweets].sort((a, b) => a.sort_order - b.sort_order)
+      );
+      if (hadUnauthorized) {
+        lockAdmin();
+        const nonAuthCount = failed.filter(
+          ({ r }) => !(r.status === "fulfilled" && r.value.status === 401)
+        ).length;
+        const extra =
+          nonAuthCount > 0
+            ? ` Additionally, ${nonAuthCount} tweet${nonAuthCount !== 1 ? "s" : ""} could not be deleted.`
+            : "";
+        setMutationError(`Admin session expired. Please unlock again.${extra}`);
+      } else {
+        setMutationError(
+          `Failed to delete ${failed.length} tweet${failed.length !== 1 ? "s" : ""}. Please try again.`
+        );
+      }
+    } finally {
+      isBulkDeletingRef.current = false;
     }
   }, [selectedIds, tweets, adminSecret, lockAdmin]);
 
