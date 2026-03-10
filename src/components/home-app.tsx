@@ -580,6 +580,12 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     setSelectedIds((prev) => pruneSelectedIds(prev, visibleIds));
   }, [filteredTweets]);
 
+  useEffect(() => {
+    if (selectedIds.size === 0) {
+      setConfirmingBulkDelete(false);
+    }
+  }, [selectedIds]);
+
   const masonryColumns = useMemo(() => {
     const effectiveCols = Math.min(cols, filteredTweets.length || 1);
     const columns: UiTweet[][] = Array.from(

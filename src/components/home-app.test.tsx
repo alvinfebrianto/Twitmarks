@@ -233,6 +233,38 @@ describe("multi-select deletion", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("filter-driven prune resets confirmation state so bar reopens in default state", async () => {
+    sessionStorage.setItem("twitmarks_admin", "test-secret");
+    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    await user.click(screen.getByRole("button", { name: "Select tweets" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete 1 selected tweet" })
+    );
+    await user.click(screen.getByRole("button", { name: "Open filters" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Search tweets" }),
+      "Second"
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: DELETE_SELECTED_RE })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Confirm" })
+      ).not.toBeInTheDocument();
+    });
+    await user.clear(screen.getByRole("textbox", { name: "Search tweets" }));
+    await user.click(screen.getByRole("button", { name: "Close filters" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    expect(
+      screen.getByRole("button", { name: "Delete 1 selected tweet" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Confirm" })
+    ).not.toBeInTheDocument();
+  });
+
   it("cancelling selection mode resets all state", async () => {
     sessionStorage.setItem("twitmarks_admin", "test-secret");
     const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
