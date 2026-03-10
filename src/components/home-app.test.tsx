@@ -282,6 +282,45 @@ describe("multi-select deletion", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("select all button is disabled when all tweets are selected", async () => {
+    sessionStorage.setItem("twitmarks_admin", "test-secret");
+    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    await user.click(screen.getByRole("button", { name: "Select tweets" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    await user.click(screen.getByRole("button", { name: "Select all 2" }));
+    expect(screen.getByRole("button", { name: "Select all 2" })).toBeDisabled();
+  });
+
+  it("bulk delete shows combined error when failures include both 401 and non-401", async () => {
+    sessionStorage.setItem("twitmarks_admin", "test-secret");
+    let callCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ ok: false, status: 401 });
+        }
+        return Promise.resolve({ ok: false, status: 500 });
+      })
+    );
+    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    await user.click(screen.getByRole("button", { name: "Select tweets" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
+    await user.click(screen.getByRole("button", { name: "Select all 2" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete 2 selected tweets" })
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Admin session expired. Please unlock again. Additionally, 1 tweet could not be deleted."
+        )
+      ).toBeInTheDocument();
+    });
+  });
+
   it("cancelling selection mode resets all state", async () => {
     sessionStorage.setItem("twitmarks_admin", "test-secret");
     const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);

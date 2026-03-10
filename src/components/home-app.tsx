@@ -346,7 +346,8 @@ const BulkActionBar = ({
             <div className="flex items-center gap-3">
               <button
                 aria-label={`Select all ${totalCount}`}
-                className="font-medium text-accent text-xs transition-colors hover:text-accent/80"
+                className="font-medium text-accent text-xs transition-colors hover:text-accent/80 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={selectedCount === totalCount}
                 onClick={onSelectAll}
                 type="button"
               >
@@ -710,20 +711,27 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       return;
     }
 
-    const failedIds = failed.map(({ id }) => id);
+    const failedIds = new Set(failed.map(({ id }) => id));
     const hadUnauthorized = failed.some(
       ({ r }) => r.status === "fulfilled" && r.value.status === 401
     );
-    const failedTweets = snapshot.filter((t) => failedIds.includes(t.id));
+    const failedTweets = snapshot.filter((t) => failedIds.has(t.id));
     setTweets((prev) =>
       [...prev, ...failedTweets].sort((a, b) => a.sort_order - b.sort_order)
     );
     if (hadUnauthorized) {
       lockAdmin();
-      setMutationError("Admin session expired. Please unlock again.");
+      const nonAuthCount = failed.filter(
+        ({ r }) => !(r.status === "fulfilled" && r.value.status === 401)
+      ).length;
+      const extra =
+        nonAuthCount > 0
+          ? ` Additionally, ${nonAuthCount} tweet${nonAuthCount !== 1 ? "s" : ""} could not be deleted.`
+          : "";
+      setMutationError(`Admin session expired. Please unlock again.${extra}`);
     } else {
       setMutationError(
-        `Failed to delete ${failedIds.length} tweet${failedIds.length !== 1 ? "s" : ""}. Please try again.`
+        `Failed to delete ${failed.length} tweet${failed.length !== 1 ? "s" : ""}. Please try again.`
       );
     }
   }, [selectedIds, tweets, adminSecret, lockAdmin]);
