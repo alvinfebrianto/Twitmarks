@@ -88,7 +88,7 @@ describe("canReorder", () => {
       canReorder({
         sortOption: "Manual",
         searchQuery: "",
-        dateFilter: "This Week",
+        dateFilter: "Last 7 Days",
       })
     ).toBe(false);
   });

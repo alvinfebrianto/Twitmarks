@@ -705,7 +705,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const isBulkDeletingRef = useRef(false);
 
   const handleBulkDelete = useCallback(async () => {
-    if (isBulkDeletingRef.current) {
+    if (isBulkDeletingRef.current || isMutatingRef.current) {
       return;
     }
     isBulkDeletingRef.current = true;
