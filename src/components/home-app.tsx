@@ -2,9 +2,12 @@
 
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Check,
   CheckSquare,
+  Image as ImageIcon,
   LockSimple,
   LockSimpleOpen,
   MagnifyingGlass,
@@ -43,6 +46,12 @@ interface UiTweet extends DbTweet {
   searchBlob: string;
 }
 
+interface TweetPhoto {
+  height: number;
+  url: string;
+  width: number;
+}
+
 function extractTextContent(html: string): string {
   if (typeof DOMParser === "undefined") {
     return html.replace(/<[^>]*>/g, " ").toLowerCase();
@@ -59,6 +68,15 @@ function normalizeTweet(tweet: DbTweet): UiTweet {
   };
 }
 
+function extractTweetId(html: string): string | null {
+  const match = html.match(TWEET_ID_RE);
+  return match?.[1] ?? null;
+}
+
+function hasTweetMedia(html: string): boolean {
+  return TWEET_MEDIA_RE.test(html);
+}
+
 declare global {
   interface Window {
     twttr?: { widgets?: { load?: (el?: HTMLElement) => void } };
@@ -67,6 +85,8 @@ declare global {
 
 const SORTS = ["Manual", "Newest", "Oldest"];
 const DATES = ["All Time", "Last 7 Days", "Last 30 Days"];
+const TWEET_ID_RE = /(?:twitter|x)\.com\/\w+\/status\/(\d+)/;
+const TWEET_MEDIA_RE = /pic\.(twitter|x)\.com/;
 
 const springConfig = { damping: 15, stiffness: 150, mass: 0.1 };
 
@@ -121,6 +141,115 @@ export const MagneticButton = ({
   );
 };
 
+const ImageViewerModal = ({
+  photos,
+  onClose,
+}: {
+  photos: TweetPhoto[];
+  onClose: () => void;
+}) => {
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      } else if (e.key === "ArrowLeft") {
+        setCurrent((p) => Math.max(0, p - 1));
+      } else if (e.key === "ArrowRight") {
+        setCurrent((p) => Math.min(photos.length - 1, p + 1));
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose, photos.length]);
+
+  const photo = photos[current];
+  if (!photo) {
+    return null;
+  }
+
+  return (
+    <>
+      <motion.div
+        animate={{ opacity: 1 }}
+        className="fixed inset-0 z-[80] bg-zinc-950/90 backdrop-blur-xl"
+        exit={{ opacity: 0 }}
+        initial={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        animate={{ opacity: 1, scale: 1 }}
+        className="fixed inset-0 z-[90] flex cursor-zoom-out items-center justify-center p-6"
+        exit={{ opacity: 0, scale: 0.96 }}
+        initial={{ opacity: 0, scale: 0.96 }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+      >
+        <div className="relative flex max-h-[90dvh] max-w-5xl cursor-default flex-col items-center gap-4">
+          <img
+            alt="Tweet media"
+            className="max-h-[80dvh] max-w-full rounded-2xl object-contain shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]"
+            height={photo.height}
+            src={`${photo.url}?format=jpg&name=large`}
+            width={photo.width}
+          />
+          {photos.length > 1 && (
+            <div className="flex items-center gap-3">
+              <button
+                aria-label="Previous image"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 disabled:opacity-30"
+                disabled={current === 0}
+                onClick={() => setCurrent((p) => Math.max(0, p - 1))}
+                type="button"
+              >
+                <ArrowLeft
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5"
+                  weight="bold"
+                />
+              </button>
+              <span className="font-medium text-sm text-white/60 tabular-nums">
+                {current + 1} / {photos.length}
+              </span>
+              <button
+                aria-label="Next image"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 disabled:opacity-30"
+                disabled={current === photos.length - 1}
+                onClick={() =>
+                  setCurrent((p) => Math.min(photos.length - 1, p + 1))
+                }
+                type="button"
+              >
+                <ArrowRight
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5"
+                  weight="bold"
+                />
+              </button>
+            </div>
+          )}
+        </div>
+        <button
+          aria-label="Close image viewer"
+          className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          type="button"
+        >
+          <X aria-hidden="true" className="h-4 w-4" weight="bold" />
+        </button>
+      </motion.div>
+    </>
+  );
+};
+
 const TweetEmbed = ({
   tweet,
   isAdmin,
@@ -134,6 +263,7 @@ const TweetEmbed = ({
   onMoveUp,
   onMoveDown,
   onToggleSelect,
+  onOpenImageViewer,
 }: {
   tweet: DbTweet;
   isAdmin: boolean;
@@ -147,9 +277,51 @@ const TweetEmbed = ({
   onMoveUp: (id: number) => void;
   onMoveDown: (id: number) => void;
   onToggleSelect: (id: number) => void;
+  onOpenImageViewer: (photos: TweetPhoto[]) => void;
 }) => {
   const embedRef = useRef<HTMLDivElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+  const [photos, setPhotos] = useState<TweetPhoto[] | null>(null);
+
+  const tweetId = useMemo(
+    () => extractTweetId(tweet.embed_html),
+    [tweet.embed_html]
+  );
+  const hasMedia = useMemo(
+    () => hasTweetMedia(tweet.embed_html),
+    [tweet.embed_html]
+  );
+
+  const handleMediaClick = useCallback(async () => {
+    if (!tweetId || isLoadingMedia) {
+      return;
+    }
+    if (photos !== null) {
+      if (photos.length > 0) {
+        onOpenImageViewer(photos);
+      }
+      return;
+    }
+    setIsLoadingMedia(true);
+    try {
+      const res = await fetch(`/api/media?id=${tweetId}`);
+      if (res.ok) {
+        const data = (await res.json()) as { photos: TweetPhoto[] };
+        const fetched = data.photos ?? [];
+        setPhotos(fetched);
+        if (fetched.length > 0) {
+          onOpenImageViewer(fetched);
+        }
+      } else {
+        setPhotos([]);
+      }
+    } catch {
+      setPhotos([]);
+    } finally {
+      setIsLoadingMedia(false);
+    }
+  }, [tweetId, isLoadingMedia, photos, onOpenImageViewer]);
 
   useEffect(() => {
     if (!embedRef.current) {
@@ -196,6 +368,33 @@ const TweetEmbed = ({
             )}
           </div>
         </label>
+      )}
+
+      {hasMedia && !isSelectionMode && (
+        <button
+          aria-label="View tweet images"
+          className="absolute top-3 left-3 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-zinc-950/50 text-white opacity-0 shadow-sm backdrop-blur-md transition-opacity duration-200 group-hover:opacity-100"
+          onClick={handleMediaClick}
+          type="button"
+        >
+          {isLoadingMedia ? (
+            <motion.div
+              animate={{ rotate: 360 }}
+              className="h-3.5 w-3.5 rounded-full border border-white/40 border-t-white"
+              transition={{
+                duration: 0.8,
+                ease: "linear",
+                repeat: Number.POSITIVE_INFINITY,
+              }}
+            />
+          ) : (
+            <ImageIcon
+              aria-hidden="true"
+              className="h-3.5 w-3.5"
+              weight="bold"
+            />
+          )}
+        </button>
       )}
 
       {isAdmin && !isSelectionMode && (
@@ -433,6 +632,13 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(clearSelection);
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
+  const [imageViewerPhotos, setImageViewerPhotos] = useState<
+    TweetPhoto[] | null
+  >(null);
+
+  const handleOpenImageViewer = useCallback((photos: TweetPhoto[]) => {
+    setImageViewerPhotos(photos);
+  }, []);
 
   const persistAdminSecret = useCallback((secret: string) => {
     const trimmed = secret.trim();
@@ -704,6 +910,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const isMutatingRef = useRef(false);
   const isBulkDeletingRef = useRef(false);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: bulk delete requires granular error recovery per-tweet
   const handleBulkDelete = useCallback(async () => {
     if (isBulkDeletingRef.current || isMutatingRef.current) {
       return;
@@ -994,6 +1201,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
                               onDelete={handleDelete}
                               onMoveDown={(id) => handleReorder(id, "down")}
                               onMoveUp={(id) => handleReorder(id, "up")}
+                              onOpenImageViewer={handleOpenImageViewer}
                               onToggleSelect={(id) =>
                                 setSelectedIds((prev) =>
                                   toggleSelectId(prev, id)
@@ -1291,6 +1499,16 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
           }
         }}
       />
+
+      <AnimatePresence>
+        {imageViewerPhotos && imageViewerPhotos.length > 0 && (
+          <ImageViewerModal
+            key="image-viewer"
+            onClose={() => setImageViewerPhotos(null)}
+            photos={imageViewerPhotos}
+          />
+        )}
+      </AnimatePresence>
 
       {import.meta.env.DEV && <Agentation />}
     </div>
