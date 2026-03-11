@@ -28,6 +28,7 @@ import {
 } from "motion/react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { loadTwitterWidgets } from "../lib/load-twitter-widgets";
 import { canReorder, moveTweet } from "../lib/tweet-order";
 import { clearSelection, toggleSelectId } from "../lib/tweet-selection";
 import { cn } from "../lib/utils";
@@ -250,6 +251,8 @@ const ImageViewerModal = ({
   );
 };
 
+const LAZY_LOAD_MARGIN = "800px 0px";
+
 const TweetEmbed = ({
   tweet,
   isAdmin,
@@ -279,10 +282,13 @@ const TweetEmbed = ({
   onToggleSelect: (id: number) => void;
   onOpenImageViewer: (photos: TweetPhoto[]) => void;
 }) => {
+  const cardRef = useRef<HTMLDivElement>(null);
   const embedRef = useRef<HTMLDivElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [photos, setPhotos] = useState<TweetPhoto[] | null>(null);
+  const [nearViewport, setNearViewport] = useState(false);
+  const didUpgradeRef = useRef(false);
 
   const tweetId = useMemo(
     () => extractTweetId(tweet.embed_html),
@@ -324,16 +330,58 @@ const TweetEmbed = ({
   }, [tweetId, isLoadingMedia, photos, onOpenImageViewer]);
 
   useEffect(() => {
+    if (nearViewport || !cardRef.current) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setNearViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: LAZY_LOAD_MARGIN, threshold: 0.01 }
+    );
+
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [nearViewport]);
+
+  useEffect(() => {
     if (!embedRef.current) {
       return;
     }
     embedRef.current.innerHTML = tweet.embed_html;
+  }, [tweet.embed_html]);
+
+  useEffect(() => {
+    if (!nearViewport || didUpgradeRef.current || !embedRef.current) {
+      return;
+    }
+
     const blockquote = embedRef.current.querySelector("blockquote");
     if (blockquote) {
       blockquote.setAttribute("data-theme", isDark ? "dark" : "light");
     }
-    window.twttr?.widgets?.load?.(embedRef.current);
-  }, [tweet.embed_html, isDark]);
+
+    let cancelled = false;
+    loadTwitterWidgets()
+      .then(() => {
+        if (cancelled || !embedRef.current) {
+          return;
+        }
+        window.twttr?.widgets?.load?.(embedRef.current);
+        didUpgradeRef.current = true;
+      })
+      .catch(() => {
+        // leave raw blockquote as fallback
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nearViewport, isDark]);
 
   return (
     <motion.div
@@ -341,7 +389,7 @@ const TweetEmbed = ({
       className="tweet-embed group relative overflow-hidden rounded-xl border border-zinc-200/60 bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-shadow duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.18)] dark:border-zinc-800/60 dark:bg-zinc-950 dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.55)]"
       exit={{ opacity: 0, scale: 0.95 }}
       initial={{ opacity: 0, y: 20 }}
-      layout="position"
+      ref={cardRef}
       transition={{ type: "spring", stiffness: 100, damping: 20 }}
     >
       <div className="[&>blockquote]:m-0" ref={embedRef} />
@@ -861,6 +909,10 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       }
       isMutatingRef.current = true;
       const currentIndex = tweets.findIndex((t) => t.id === tweetId);
+      if (currentIndex < 0) {
+        isMutatingRef.current = false;
+        return;
+      }
       const targetIndex =
         direction === "up" ? currentIndex - 1 : currentIndex + 1;
       const targetId = tweets[targetIndex]?.id;
@@ -929,18 +981,24 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       setSelectionMode(false);
       setConfirmingBulkDelete(false);
 
-      const results = await Promise.allSettled(
-        idsToDelete.map((id) =>
-          fetch("/api/tweets", {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${adminSecret}`,
-            },
-            body: JSON.stringify({ id }),
-          })
-        )
-      );
+      const BATCH_SIZE = 6;
+      const results: PromiseSettledResult<Response>[] = [];
+      for (let i = 0; i < idsToDelete.length; i += BATCH_SIZE) {
+        const batch = idsToDelete.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+          batch.map((id) =>
+            fetch("/api/tweets", {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${adminSecret}`,
+              },
+              body: JSON.stringify({ id }),
+            })
+          )
+        );
+        results.push(...batchResults);
+      }
 
       const tagged = results.map((r, i) => ({ r, id: idsToDelete[i] }));
       const failed = tagged.filter(
