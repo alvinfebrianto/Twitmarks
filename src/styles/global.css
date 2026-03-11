@@ -50,9 +50,14 @@
     scrollbar-width: none;
   }
 
+  .tweet-embed .twitter-tweet {
+    width: 100% !important;
+  }
+
   .tweet-embed iframe {
     display: block !important;
-    width: calc(100% + 28px) !important;
-    margin: -14px !important;
+    width: 100% !important;
+    margin-top: -13px !important;
+    margin-bottom: -13px !important;
   }
 }
