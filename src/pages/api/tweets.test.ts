@@ -77,6 +77,7 @@ describe("POST /api/tweets", () => {
     const json = await response.json();
     expect(json.success).toBe(true);
     expect(json.id).toBe(1);
+    expect(json.created_at).toBeDefined();
     expect(db.prepare).toHaveBeenCalledWith(
       "INSERT INTO tweets (embed_html, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
     );
@@ -105,6 +106,24 @@ describe("POST /api/tweets", () => {
     const response = await POST({ request, locals } as never);
 
     expect(response.status).toBe(401);
+  });
+
+  it("returns 400 when request body is not valid JSON", async () => {
+    const locals = createLocals();
+    const request = new Request("http://localhost/api/tweets", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-secret",
+      },
+      body: "not json",
+    });
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json.why).toContain("valid JSON");
   });
 
   it("returns 400 when embed_html is missing", async () => {
@@ -195,7 +214,7 @@ describe("GET /api/tweets", () => {
     await GET({ locals } as never);
 
     expect(db.prepare).toHaveBeenCalledWith(
-      "SELECT * FROM tweets ORDER BY sort_order ASC, id ASC"
+      "SELECT id, embed_html, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
     );
   });
 });
