@@ -17,7 +17,10 @@ export function loadTwitterWidgets(): Promise<void> {
     script.async = true;
     script.charset = "utf-8";
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load widgets.js"));
+    script.onerror = () => {
+      widgetsPromise = null;
+      reject(new Error("Failed to load widgets.js"));
+    };
     document.head.appendChild(script);
   });
 

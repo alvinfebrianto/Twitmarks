@@ -356,13 +356,18 @@ const TweetEmbed = ({
   }, [tweet.embed_html]);
 
   useEffect(() => {
-    if (!nearViewport || didUpgradeRef.current || !embedRef.current) {
+    if (!(nearViewport && embedRef.current)) {
       return;
     }
 
     const blockquote = embedRef.current.querySelector("blockquote");
     if (blockquote) {
       blockquote.setAttribute("data-theme", isDark ? "dark" : "light");
+    }
+
+    if (didUpgradeRef.current) {
+      window.twttr?.widgets?.load?.(embedRef.current);
+      return;
     }
 
     let cancelled = false;
@@ -389,6 +394,7 @@ const TweetEmbed = ({
       className="tweet-embed group relative overflow-hidden rounded-xl border border-zinc-200/60 bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-shadow duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.18)] dark:border-zinc-800/60 dark:bg-zinc-950 dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.55)]"
       exit={{ opacity: 0, scale: 0.95 }}
       initial={{ opacity: 0, y: 20 }}
+      layout="position"
       ref={cardRef}
       transition={{ type: "spring", stiffness: 100, damping: 20 }}
     >
