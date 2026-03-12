@@ -288,7 +288,6 @@ const TweetEmbed = ({
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [photos, setPhotos] = useState<TweetPhoto[] | null>(null);
   const [nearViewport, setNearViewport] = useState(false);
-  const didUpgradeRef = useRef(false);
 
   const tweetId = useMemo(
     () => extractTweetId(tweet.embed_html),
@@ -349,25 +348,18 @@ const TweetEmbed = ({
   }, [nearViewport]);
 
   useEffect(() => {
-    if (!embedRef.current) {
-      return;
-    }
-    embedRef.current.innerHTML = tweet.embed_html;
-  }, [tweet.embed_html]);
-
-  useEffect(() => {
     if (!(nearViewport && embedRef.current)) {
+      if (embedRef.current) {
+        embedRef.current.innerHTML = tweet.embed_html;
+      }
       return;
     }
+
+    embedRef.current.innerHTML = tweet.embed_html;
 
     const blockquote = embedRef.current.querySelector("blockquote");
     if (blockquote) {
       blockquote.setAttribute("data-theme", isDark ? "dark" : "light");
-    }
-
-    if (didUpgradeRef.current) {
-      window.twttr?.widgets?.load?.(embedRef.current);
-      return;
     }
 
     let cancelled = false;
@@ -377,7 +369,6 @@ const TweetEmbed = ({
           return;
         }
         window.twttr?.widgets?.load?.(embedRef.current);
-        didUpgradeRef.current = true;
       })
       .catch(() => {
         // leave raw blockquote as fallback
@@ -386,7 +377,7 @@ const TweetEmbed = ({
     return () => {
       cancelled = true;
     };
-  }, [nearViewport, isDark]);
+  }, [nearViewport, tweet.embed_html, isDark]);
 
   return (
     <motion.div
