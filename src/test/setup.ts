@@ -17,4 +17,24 @@ if (typeof window !== "undefined") {
       dispatchEvent: () => false,
     }),
   });
+
+  if (typeof globalThis.IntersectionObserver === "undefined") {
+    globalThis.IntersectionObserver = class IntersectionObserver {
+      readonly root: Element | null = null;
+      readonly rootMargin: string = "";
+      readonly thresholds: readonly number[] = [];
+      observe() {
+        /* stub */
+      }
+      unobserve() {
+        /* stub */
+      }
+      disconnect() {
+        /* stub */
+      }
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+    };
+  }
 }
