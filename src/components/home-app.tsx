@@ -29,11 +29,21 @@ import {
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  EmbeddedTweet,
+  enrichTweet,
+  QuotedTweet,
+  TweetActions,
+  TweetBody,
+  TweetContainer,
+  TweetHeader,
+  TweetInfo,
+  TweetInReplyTo,
+  TweetMedia,
   TweetNotFound,
+  TweetReplies,
   TweetSkeleton,
   useTweet,
 } from "react-tweet";
+import type { Tweet } from "react-tweet/api";
 import "react-tweet/theme.css";
 import { canReorder, moveTweet } from "../lib/tweet-order";
 import { clearSelection, toggleSelectId } from "../lib/tweet-selection";
@@ -251,6 +261,153 @@ const ImageViewerModal = ({
   );
 };
 
+interface OgData {
+  description: string | null;
+  domain: string;
+  image: string | null;
+  title: string | null;
+}
+
+const TweetUrlCard = ({ url }: { url: string }) => {
+  const [og, setOg] = useState<OgData | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/og?url=${encodeURIComponent(url)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<OgData>) : null))
+      .then((data) => {
+        if (data && (data.title ?? data.image)) {
+          setOg(data);
+        }
+      })
+      .catch(() => {
+        // fetch failed; silently ignore
+      });
+  }, [url]);
+
+  if (!og) {
+    return null;
+  }
+
+  return (
+    <a
+      href={url}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+          "var(--tweet-bg-color-hover)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "";
+      }}
+      rel="noopener noreferrer"
+      style={{
+        border: "var(--tweet-border)",
+        borderRadius: "0.75rem",
+        color: "var(--tweet-font-color)",
+        display: "block",
+        marginTop: "0.75rem",
+        overflow: "hidden",
+        textDecoration: "none",
+        transition: "background-color 0.15s",
+      }}
+      target="_blank"
+    >
+      {og.image && (
+        <div
+          style={{ aspectRatio: "2 / 1", overflow: "hidden", width: "100%" }}
+        >
+          <img
+            alt={og.title ?? ""}
+            height={630}
+            src={og.image}
+            style={{
+              display: "block",
+              height: "100%",
+              objectFit: "cover",
+              width: "100%",
+            }}
+            width={1200}
+          />
+        </div>
+      )}
+      <div style={{ padding: "0.625rem 0.75rem" }}>
+        <div
+          style={{
+            color: "var(--tweet-font-color-secondary)",
+            fontSize: "0.8125rem",
+            marginBottom: "0.125rem",
+          }}
+        >
+          {og.domain}
+        </div>
+        {og.title && (
+          <div
+            style={{
+              color: "var(--tweet-font-color)",
+              fontSize: "0.9375rem",
+              fontWeight: 700,
+              lineHeight: "1.25rem",
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+            }}
+          >
+            {og.title}
+          </div>
+        )}
+        {og.description && (
+          <div
+            style={{
+              color: "var(--tweet-font-color-secondary)",
+              fontSize: "0.8125rem",
+              lineHeight: "1.25rem",
+              marginTop: "0.125rem",
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+            }}
+          >
+            {og.description}
+          </div>
+        )}
+      </div>
+    </a>
+  );
+};
+
+const CustomEmbeddedTweet = ({ tweet: t }: { tweet: Tweet }) => {
+  const tweet = useMemo(() => enrichTweet(t), [t]);
+
+  const previewUrl = useMemo(() => {
+    for (let i = tweet.entities.length - 1; i >= 0; i--) {
+      const e = tweet.entities[i];
+      if (
+        e?.type === "url" &&
+        !e.expanded_url.includes("twitter.com") &&
+        !e.expanded_url.includes("x.com")
+      ) {
+        return e.expanded_url;
+      }
+    }
+    return null;
+  }, [tweet.entities]);
+
+  return (
+    <TweetContainer>
+      <TweetHeader tweet={tweet} />
+      {tweet.in_reply_to_status_id_str && <TweetInReplyTo tweet={tweet} />}
+      <TweetBody tweet={tweet} />
+      {previewUrl && <TweetUrlCard url={previewUrl} />}
+      {tweet.mediaDetails?.length ? <TweetMedia tweet={tweet} /> : null}
+      {tweet.quoted_tweet && <QuotedTweet tweet={tweet.quoted_tweet} />}
+      <TweetInfo tweet={tweet} />
+      <TweetActions tweet={tweet} />
+      <TweetReplies tweet={tweet} />
+    </TweetContainer>
+  );
+};
+
 const LAZY_LOAD_MARGIN = "800px 0px";
 
 const TweetEmbed = ({
@@ -363,7 +520,7 @@ const TweetEmbed = ({
     if (error || !tweetData) {
       return <TweetNotFound />;
     }
-    return <EmbeddedTweet tweet={tweetData} />;
+    return <CustomEmbeddedTweet tweet={tweetData} />;
   };
 
   return (
