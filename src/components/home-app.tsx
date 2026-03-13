@@ -1133,12 +1133,11 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
 
             <MagneticButton
               aria-label="Add new tweet"
-              className="gap-0 rounded-full bg-zinc-950 px-3 py-2 font-medium text-white text-xs shadow-lg shadow-zinc-950/15 md:gap-1.5 md:px-4 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/15"
+              className="gap-0 rounded-full bg-zinc-950 px-3 py-2 font-medium text-white text-xs shadow-lg shadow-zinc-950/15 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/15"
               onClick={() => setIsAddModalOpen(true)}
               type="button"
             >
               <Plus aria-hidden="true" className="h-3.5 w-3.5" weight="bold" />
-              <span className="hidden md:inline">Add Tweet</span>
             </MagneticButton>
           </div>
         </div>
