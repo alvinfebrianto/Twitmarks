@@ -1046,9 +1046,9 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
 
   return (
     <div className="min-h-[100dvh] bg-zinc-50 font-sans text-zinc-950 selection:bg-accent selection:text-white dark:bg-zinc-950 dark:text-zinc-50">
-      <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 px-4 py-3">
+      <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 px-3 py-2 md:px-4 md:py-3">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between">
-          <div className="glass-panel pointer-events-auto flex items-center gap-2.5 rounded-full px-4 py-2">
+          <div className="glass-panel pointer-events-auto flex items-center gap-2 rounded-full px-3 py-2 md:gap-2.5 md:px-4">
             <div className="flex h-5 w-5 items-center justify-center rounded-md bg-zinc-950 dark:bg-zinc-100">
               <TwitterLogo
                 aria-hidden="true"
@@ -1056,12 +1056,12 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
                 weight="fill"
               />
             </div>
-            <span className="font-bold font-display text-base tracking-tight dark:text-zinc-50">
+            <span className="hidden font-bold font-display text-base tracking-tight md:block dark:text-zinc-50">
               Twitmarks
             </span>
           </div>
 
-          <div className="pointer-events-auto flex items-center gap-2">
+          <div className="pointer-events-auto flex items-center gap-1.5 md:gap-2">
             <ThemeToggle />
 
             <MagneticButton
@@ -1133,12 +1133,12 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
 
             <MagneticButton
               aria-label="Add new tweet"
-              className="gap-1.5 rounded-full bg-zinc-950 px-4 py-2 font-medium text-white text-xs shadow-lg shadow-zinc-950/15 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/15"
+              className="gap-0 rounded-full bg-zinc-950 px-3 py-2 font-medium text-white text-xs shadow-lg shadow-zinc-950/15 md:gap-1.5 md:px-4 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/15"
               onClick={() => setIsAddModalOpen(true)}
               type="button"
             >
               <Plus aria-hidden="true" className="h-3.5 w-3.5" weight="bold" />
-              <span>Add Tweet</span>
+              <span className="hidden md:inline">Add Tweet</span>
             </MagneticButton>
           </div>
         </div>
