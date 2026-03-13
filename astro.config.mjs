@@ -7,6 +7,9 @@ export default defineConfig({
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
+    ssr: {
+      noExternal: ["react-tweet"],
+    },
   },
   adapter: cloudflare({
     platformProxy: {
