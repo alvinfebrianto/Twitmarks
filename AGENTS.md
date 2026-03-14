@@ -2,11 +2,11 @@
 
 Twitter embed gallery built with Astro + Cloudflare.
 
-You are on bash/pwsh on Windows.
+You are on `bash` or `pwsh` on Windows.
 
 ## Always-apply rules
 
-- Run `npm.cmd run lint:fix` after making changes.
+- Run `npm.cmd run lint:fix` after making code changes.
 
 ## Documentation
 

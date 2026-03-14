@@ -28,7 +28,23 @@ import {
 } from "motion/react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { loadTwitterWidgets } from "../lib/load-twitter-widgets";
+import {
+  enrichTweet,
+  QuotedTweet,
+  TweetActions,
+  TweetBody,
+  TweetContainer,
+  TweetHeader,
+  TweetInfo,
+  TweetInReplyTo,
+  TweetMedia,
+  TweetNotFound,
+  TweetReplies,
+  TweetSkeleton,
+  useTweet,
+} from "react-tweet";
+import type { Tweet } from "react-tweet/api";
+import "react-tweet/theme.css";
 import { canReorder, moveTweet } from "../lib/tweet-order";
 import { clearSelection, toggleSelectId } from "../lib/tweet-selection";
 import { cn } from "../lib/utils";
@@ -76,12 +92,6 @@ function extractTweetId(html: string): string | null {
 
 function hasTweetMedia(html: string): boolean {
   return TWEET_MEDIA_RE.test(html);
-}
-
-declare global {
-  interface Window {
-    twttr?: { widgets?: { load?: (el?: HTMLElement) => void } };
-  }
 }
 
 const SORTS = ["Manual", "Newest", "Oldest"];
@@ -251,6 +261,168 @@ const ImageViewerModal = ({
   );
 };
 
+interface OgData {
+  description: string | null;
+  domain: string;
+  image: string | null;
+  title: string | null;
+}
+
+const TweetUrlCard = ({ url }: { url: string }) => {
+  const [og, setOg] = useState<OgData | null>(null);
+
+  useEffect(() => {
+    const fetchOg = async () => {
+      try {
+        const r = await fetch(`/api/og?url=${encodeURIComponent(url)}`);
+        if (!r.ok) {
+          return;
+        }
+        const data = (await r.json()) as OgData;
+        if (data && (data.title ?? data.image)) {
+          setOg(data);
+        }
+      } catch {
+        // fetch failed; silently ignore
+      }
+    };
+    fetchOg();
+  }, [url]);
+
+  if (!og) {
+    return null;
+  }
+
+  return (
+    <a
+      href={url}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+          "var(--tweet-bg-color-hover)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "";
+      }}
+      rel="noopener noreferrer"
+      style={{
+        border: "var(--tweet-border)",
+        borderRadius: "0.75rem",
+        color: "var(--tweet-font-color)",
+        display: "block",
+        marginTop: "0.75rem",
+        overflow: "hidden",
+        textDecoration: "none",
+        transition: "background-color 0.15s",
+      }}
+      target="_blank"
+    >
+      {og.image && (
+        <div
+          style={{ aspectRatio: "2 / 1", overflow: "hidden", width: "100%" }}
+        >
+          <img
+            alt={og.title ?? ""}
+            height={630}
+            src={og.image}
+            style={{
+              display: "block",
+              height: "100%",
+              objectFit: "cover",
+              width: "100%",
+            }}
+            width={1200}
+          />
+        </div>
+      )}
+      <div style={{ padding: "0.625rem 0.75rem" }}>
+        <div
+          style={{
+            color: "var(--tweet-font-color-secondary)",
+            fontSize: "0.8125rem",
+            marginBottom: "0.125rem",
+          }}
+        >
+          {og.domain}
+        </div>
+        {og.title && (
+          <div
+            style={{
+              color: "var(--tweet-font-color)",
+              fontSize: "0.9375rem",
+              fontWeight: 700,
+              lineHeight: "1.25rem",
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+            }}
+          >
+            {og.title}
+          </div>
+        )}
+        {og.description && (
+          <div
+            style={{
+              color: "var(--tweet-font-color-secondary)",
+              fontSize: "0.8125rem",
+              lineHeight: "1.25rem",
+              marginTop: "0.125rem",
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+            }}
+          >
+            {og.description}
+          </div>
+        )}
+      </div>
+    </a>
+  );
+};
+
+const CustomEmbeddedTweet = ({ tweet: t }: { tweet: Tweet }) => {
+  const tweet = useMemo(() => enrichTweet(t), [t]);
+
+  const previewUrl = useMemo(() => {
+    let preview: string | null = null;
+    for (const e of tweet.entities) {
+      if (e?.type !== "url") {
+        continue;
+      }
+      try {
+        const host = new URL(e.expanded_url).hostname.toLowerCase();
+        if (
+          host === "twitter.com" ||
+          host.endsWith(".twitter.com") ||
+          host === "x.com" ||
+          host.endsWith(".x.com")
+        ) {
+          continue;
+        }
+        preview = e.expanded_url;
+      } catch {
+        // malformed URL, skip entity
+      }
+    }
+    return preview;
+  }, [tweet.entities]);
+
+  return (
+    <TweetContainer>
+      <TweetHeader tweet={tweet} />
+      {tweet.in_reply_to_status_id_str && <TweetInReplyTo tweet={tweet} />}
+      <TweetBody tweet={tweet} />
+      {previewUrl && <TweetUrlCard url={previewUrl} />}
+      {tweet.mediaDetails?.length ? <TweetMedia tweet={tweet} /> : null}
+      {tweet.quoted_tweet && <QuotedTweet tweet={tweet.quoted_tweet} />}
+      <TweetInfo tweet={tweet} />
+      <TweetActions tweet={tweet} />
+      <TweetReplies tweet={tweet} />
+    </TweetContainer>
+  );
+};
+
 const LAZY_LOAD_MARGIN = "800px 0px";
 
 const TweetEmbed = ({
@@ -283,7 +455,6 @@ const TweetEmbed = ({
   onOpenImageViewer: (photos: TweetPhoto[]) => void;
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
-  const embedRef = useRef<HTMLDivElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [photos, setPhotos] = useState<TweetPhoto[] | null>(null);
@@ -297,6 +468,13 @@ const TweetEmbed = ({
     () => hasTweetMedia(tweet.embed_html),
     [tweet.embed_html]
   );
+
+  const apiUrl = tweetId ? `/api/tweet/${tweetId}` : undefined;
+  const {
+    data: tweetData,
+    error,
+    isLoading,
+  } = useTweet(undefined, nearViewport ? apiUrl : undefined);
 
   const handleMediaClick = useCallback(async () => {
     if (!tweetId || isLoadingMedia) {
@@ -347,49 +525,38 @@ const TweetEmbed = ({
     return () => observer.disconnect();
   }, [nearViewport]);
 
-  useEffect(() => {
-    if (!(nearViewport && embedRef.current)) {
-      if (embedRef.current) {
-        embedRef.current.innerHTML = tweet.embed_html;
-      }
-      return;
+  const renderTweetContent = () => {
+    if (!nearViewport) {
+      return <TweetSkeleton />;
     }
-
-    embedRef.current.innerHTML = tweet.embed_html;
-
-    const blockquote = embedRef.current.querySelector("blockquote");
-    if (blockquote) {
-      blockquote.setAttribute("data-theme", isDark ? "dark" : "light");
+    if (!tweetId) {
+      return <TweetNotFound />;
     }
-
-    let cancelled = false;
-    loadTwitterWidgets()
-      .then(() => {
-        if (cancelled || !embedRef.current) {
-          return;
-        }
-        window.twttr?.widgets?.load?.(embedRef.current);
-      })
-      .catch(() => {
-        // leave raw blockquote as fallback
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [nearViewport, tweet.embed_html, isDark]);
+    if (isLoading) {
+      return <TweetSkeleton />;
+    }
+    if (error || !tweetData) {
+      return <TweetNotFound />;
+    }
+    return <CustomEmbeddedTweet tweet={tweetData} />;
+  };
 
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
-      className="tweet-embed group relative overflow-hidden rounded-xl border border-zinc-200/60 bg-white shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-shadow duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.18)] dark:border-zinc-800/60 dark:bg-zinc-950 dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.55)]"
+      className="tweet-embed group relative min-w-0"
       exit={{ opacity: 0, scale: 0.95 }}
       initial={{ opacity: 0, y: 20 }}
       layout="position"
       ref={cardRef}
       transition={{ type: "spring", stiffness: 100, damping: 20 }}
     >
-      <div className="[&>blockquote]:m-0" ref={embedRef} />
+      <div
+        className="[&>div]:!m-0 min-w-0"
+        data-theme={isDark ? "dark" : "light"}
+      >
+        {renderTweetContent()}
+      </div>
 
       {isAdmin && isSelectionMode && (
         <label className="absolute top-3 left-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center">
@@ -854,9 +1021,9 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       { length: effectiveCols },
       () => []
     );
-    filteredTweets.forEach((tweet, i) => {
+    for (const [i, tweet] of filteredTweets.entries()) {
       columns[i % effectiveCols].push(tweet);
-    });
+    }
     return columns;
   }, [filteredTweets, cols]);
 
@@ -1232,13 +1399,13 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
               </motion.div>
             )}
             {!loading && filteredTweets.length > 0 && (
-              <div className="flex items-start justify-center gap-6">
+              <div className="flex w-full min-w-0 items-start justify-center gap-6 overflow-hidden">
                 {masonryColumns
                   .filter((column) => column.length > 0)
                   .map((column, columnIndex) => {
                     return (
                       <div
-                        className="flex w-full max-w-[550px] flex-col gap-6"
+                        className="flex w-full min-w-0 max-w-[550px] flex-col gap-6"
                         // biome-ignore lint/suspicious/noArrayIndexKey: masonry columns are structural containers with stable count
                         key={columnIndex}
                       >
