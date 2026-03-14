@@ -2,7 +2,6 @@ import type { APIRoute } from "astro";
 
 export const prerender = false;
 
-const ALLOWED_RE = /^https?:\/\//;
 const WWW_RE = /^www\./;
 const CONTENT_RE = /\bcontent\s*=\s*(["'])([^<>]*?)\1/i;
 const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
@@ -52,6 +51,21 @@ function parseTarget(input: string): URL | null {
     return null;
   }
   if (host.startsWith("[") || host.includes(":")) {
+    return null;
+  }
+
+  return u;
+}
+
+function parseHttpUrl(input: string, base?: URL): URL | null {
+  let u: URL;
+  try {
+    u = base ? new URL(input, base) : new URL(input);
+  } catch {
+    return null;
+  }
+
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
     return null;
   }
 
@@ -112,16 +126,15 @@ export const GET: APIRoute = async ({ url }) => {
     const tw = (name: string) => extractMeta(html, "name", `twitter:${name}`);
     const meta = (name: string) => extractMeta(html, "name", name);
 
-    let image = og("image") ?? tw("image");
+    const imageInput = og("image") ?? tw("image");
+    const image = imageInput
+      ? (parseHttpUrl(imageInput, targetUrl)?.toString() ?? null)
+      : null;
     const title = og("title") ?? tw("title");
     const description =
       og("description") ?? tw("description") ?? meta("description");
 
     const domain = targetUrl.hostname.replace(WWW_RE, "");
-
-    if (image && !ALLOWED_RE.test(image)) {
-      image = new URL(image, targetUrl).toString();
-    }
 
     return new Response(JSON.stringify({ image, title, description, domain }), {
       status: 200,

@@ -385,17 +385,17 @@ const CustomEmbeddedTweet = ({ tweet: t }: { tweet: Tweet }) => {
   const tweet = useMemo(() => enrichTweet(t), [t]);
 
   const previewUrl = useMemo(() => {
-    for (let i = tweet.entities.length - 1; i >= 0; i--) {
-      const e = tweet.entities[i];
+    let preview: string | null = null;
+    for (const e of tweet.entities) {
       if (
         e?.type === "url" &&
         !e.expanded_url.includes("twitter.com") &&
         !e.expanded_url.includes("x.com")
       ) {
-        return e.expanded_url;
+        preview = e.expanded_url;
       }
     }
-    return null;
+    return preview;
   }, [tweet.entities]);
 
   return (
@@ -1011,9 +1011,9 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       { length: effectiveCols },
       () => []
     );
-    filteredTweets.forEach((tweet, i) => {
+    for (const [i, tweet] of filteredTweets.entries()) {
       columns[i % effectiveCols].push(tweet);
-    });
+    }
     return columns;
   }, [filteredTweets, cols]);
 

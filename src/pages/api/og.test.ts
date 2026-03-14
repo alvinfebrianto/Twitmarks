@@ -136,4 +136,31 @@ describe("GET /api/og", () => {
       expect(data.domain).toBe("example.com");
     });
   });
+
+  describe("image URL sanitization", () => {
+    it("resolves relative image URLs against target URL", async () => {
+      mockFetchHtml('<meta property="og:image" content="/images/preview.png">');
+      const res = await GET(
+        createRequest("?url=https://example.com/articles/1") as never
+      );
+      const data = await res.json();
+      expect(data.image).toBe("https://example.com/images/preview.png");
+    });
+
+    it("rejects javascript protocol image URLs", async () => {
+      mockFetchHtml('<meta property="og:image" content="javascript:alert(1)">');
+      const res = await GET(createRequest("?url=https://example.com") as never);
+      const data = await res.json();
+      expect(data.image).toBeNull();
+    });
+
+    it("rejects data URI image URLs", async () => {
+      mockFetchHtml(
+        '<meta property="og:image" content="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=">'
+      );
+      const res = await GET(createRequest("?url=https://example.com") as never);
+      const data = await res.json();
+      expect(data.image).toBeNull();
+    });
+  });
 });
