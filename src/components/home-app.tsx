@@ -272,16 +272,21 @@ const TweetUrlCard = ({ url }: { url: string }) => {
   const [og, setOg] = useState<OgData | null>(null);
 
   useEffect(() => {
-    fetch(`/api/og?url=${encodeURIComponent(url)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<OgData>) : null))
-      .then((data) => {
+    const fetchOg = async () => {
+      try {
+        const r = await fetch(`/api/og?url=${encodeURIComponent(url)}`);
+        if (!r.ok) {
+          return;
+        }
+        const data = (await r.json()) as OgData;
         if (data && (data.title ?? data.image)) {
           setOg(data);
         }
-      })
-      .catch(() => {
+      } catch {
         // fetch failed; silently ignore
-      });
+      }
+    };
+    fetchOg();
   }, [url]);
 
   if (!og) {
@@ -511,8 +516,11 @@ const TweetEmbed = ({
   }, [nearViewport]);
 
   const renderTweetContent = () => {
-    if (!(nearViewport && tweetId)) {
+    if (!nearViewport) {
       return <TweetSkeleton />;
+    }
+    if (!tweetId) {
+      return <TweetNotFound />;
     }
     if (isLoading) {
       return <TweetSkeleton />;
