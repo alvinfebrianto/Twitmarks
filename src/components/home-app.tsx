@@ -387,12 +387,22 @@ const CustomEmbeddedTweet = ({ tweet: t }: { tweet: Tweet }) => {
   const previewUrl = useMemo(() => {
     let preview: string | null = null;
     for (const e of tweet.entities) {
-      if (
-        e?.type === "url" &&
-        !e.expanded_url.includes("twitter.com") &&
-        !e.expanded_url.includes("x.com")
-      ) {
+      if (e?.type !== "url") {
+        continue;
+      }
+      try {
+        const host = new URL(e.expanded_url).hostname.toLowerCase();
+        if (
+          host === "twitter.com" ||
+          host.endsWith(".twitter.com") ||
+          host === "x.com" ||
+          host.endsWith(".x.com")
+        ) {
+          continue;
+        }
         preview = e.expanded_url;
+      } catch {
+        // malformed URL, skip entity
       }
     }
     return preview;
