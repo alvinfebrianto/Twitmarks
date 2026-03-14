@@ -4,16 +4,58 @@ export const prerender = false;
 
 const ALLOWED_RE = /^https?:\/\//;
 const WWW_RE = /^www\./;
+const CONTENT_RE = /\bcontent\s*=\s*(["'])([^<>]*?)\1/i;
+const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function extractMeta(html: string, attr: string, value: string): string | null {
-  const re = new RegExp(
-    `<meta[^>]+(?:${attr})=["']${value}["'][^>]+content=["']([^"'<>]+)["']` +
-      `|<meta[^>]+content=["']([^"'<>]+)["'][^>]+(?:${attr})=["']${value}["']`,
+  const attrRe = new RegExp(
+    `\\b${escapeRe(attr)}\\s*=\\s*(["'])${escapeRe(value)}\\1`,
     "i"
   );
-  const m = html.match(re);
-  const raw = m?.[1] ?? m?.[2] ?? null;
-  return raw ? decodeHtmlEntities(raw) : null;
+  for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
+    if (!attrRe.test(tag)) {
+      continue;
+    }
+    const m = tag.match(CONTENT_RE);
+    if (m?.[2]) {
+      return decodeHtmlEntities(m[2]);
+    }
+  }
+
+  return null;
+}
+
+function parseTarget(input: string): URL | null {
+  let u: URL;
+  try {
+    u = new URL(input);
+  } catch {
+    return null;
+  }
+
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    return null;
+  }
+  if (u.username || u.password) {
+    return null;
+  }
+
+  const host = u.hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".local")) {
+    return null;
+  }
+  if (IPV4_RE.test(host)) {
+    return null;
+  }
+  if (host.startsWith("[") || host.includes(":")) {
+    return null;
+  }
+
+  return u;
 }
 
 function decodeHtmlEntities(str: string): string {
@@ -28,12 +70,13 @@ function decodeHtmlEntities(str: string): string {
 
 export const GET: APIRoute = async ({ url }) => {
   const target = url.searchParams.get("url");
-  if (!(target && ALLOWED_RE.test(target))) {
+  const targetUrl = target ? parseTarget(target) : null;
+  if (!targetUrl) {
     return Response.json({ error: "Invalid url" }, { status: 400 });
   }
 
   try {
-    const res = await fetch(target, {
+    const res = await fetch(targetUrl, {
       headers: {
         "User-Agent": "Twitterbot/1.0",
         Accept: "text/html,application/xhtml+xml",
@@ -74,11 +117,10 @@ export const GET: APIRoute = async ({ url }) => {
     const description =
       og("description") ?? tw("description") ?? meta("description");
 
-    const targetUrl = new URL(target);
     const domain = targetUrl.hostname.replace(WWW_RE, "");
 
     if (image && !ALLOWED_RE.test(image)) {
-      image = new URL(image, target).toString();
+      image = new URL(image, targetUrl).toString();
     }
 
     return new Response(JSON.stringify({ image, title, description, domain }), {
