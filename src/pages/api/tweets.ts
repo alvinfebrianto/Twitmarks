@@ -110,7 +110,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const authError = await verifyAdmin(request, adminSecret);
     if (authError) {
-      log.emit({ status: 401 });
+      log.emit({ status: authError.status });
       return authError;
     }
 
@@ -232,7 +232,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 
     const authError = await verifyAdmin(request, adminSecret);
     if (authError) {
-      log.emit({ status: 401 });
+      log.emit({ status: authError.status });
       return authError;
     }
 
@@ -291,7 +291,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
 
     const authError = await verifyAdmin(request, adminSecret);
     if (authError) {
-      log.emit({ status: 401 });
+      log.emit({ status: authError.status });
       return authError;
     }
 
