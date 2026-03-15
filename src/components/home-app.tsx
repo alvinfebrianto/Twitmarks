@@ -515,7 +515,7 @@ const CustomTweetMedia = ({
               <div
                 style={{
                   paddingBottom: `${String(getSkeletonStyle(media, length).paddingBottom)}`,
-                  width: media.type === "photo" ? undefined : "unset",
+                  width: "unset",
                   display: "block",
                 }}
               />
