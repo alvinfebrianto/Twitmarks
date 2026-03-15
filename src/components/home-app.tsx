@@ -38,6 +38,7 @@ import {
   TweetHeader,
   TweetInfo,
   TweetInReplyTo,
+  TweetMedia,
   TweetNotFound,
   TweetReplies,
   TweetSkeleton,
@@ -566,9 +567,13 @@ const CustomEmbeddedTweet = ({
       {tweet.in_reply_to_status_id_str && <TweetInReplyTo tweet={tweet} />}
       <TweetBody tweet={tweet} />
       {previewUrl && <TweetUrlCard url={previewUrl} />}
-      {tweet.mediaDetails?.length && onImageClick ? (
+      {tweet.mediaDetails?.length &&
+      onImageClick &&
+      tweet.mediaDetails.every((m) => m.type === "photo") ? (
         <CustomTweetMedia onImageClick={onImageClick} tweet={tweet} />
-      ) : null}
+      ) : (
+        tweet.mediaDetails?.length && <TweetMedia tweet={tweet} />
+      )}
       {tweet.quoted_tweet && <QuotedTweet tweet={tweet.quoted_tweet} />}
       <TweetInfo tweet={tweet} />
       <TweetActions tweet={tweet} />
