@@ -1,4 +1,6 @@
 import type { APIRoute } from "astro";
+import { createWorkersLogger } from "evlog/workers";
+import { ensureEvlogError } from "../../../lib/evlog";
 
 export const prerender = false;
 
@@ -11,11 +13,17 @@ function getToken(id: string): string {
     .replace(/(0+|\.)/g, "");
 }
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, request }) => {
+  const log = createWorkersLogger(request);
   const id = params.id;
+
   if (!(id && TWEET_ID_RE.test(id))) {
+    log.set({ tweet: { id, valid: false } });
+    log.emit({ status: 400 });
     return Response.json({ data: null }, { status: 400 });
   }
+
+  log.set({ tweet: { id } });
 
   const url = new URL(`${SYNDICATION_URL}/tweet-result`);
   url.searchParams.set("id", id);
@@ -48,14 +56,22 @@ export const GET: APIRoute = async ({ params }) => {
       ?.includes("application/json");
 
     if (!(res.ok && isJson)) {
-      return Response.json({ data: null }, { status: res.ok ? 500 : 404 });
+      const status = res.ok ? 500 : 404;
+      log.set({ tweet: { fetchStatus: res.status, found: false } });
+      log.emit({ status });
+      return Response.json({ data: null }, { status });
     }
 
     const data = await res.json();
 
     if (!data || (typeof data === "object" && Object.keys(data).length === 0)) {
+      log.set({ tweet: { found: false } });
+      log.emit({ status: 404 });
       return Response.json({ data: null }, { status: 404 });
     }
+
+    log.set({ tweet: { found: true } });
+    log.emit({ status: 200 });
 
     return new Response(JSON.stringify({ data }), {
       status: 200,
@@ -64,7 +80,10 @@ export const GET: APIRoute = async ({ params }) => {
         "Cache-Control": "public, max-age=3600",
       },
     });
-  } catch {
+  } catch (error) {
+    const evlogError = ensureEvlogError(error, "Failed to fetch tweet data");
+    log.error(evlogError);
+    log.emit({ status: 500 });
     return Response.json({ data: null }, { status: 500 });
   }
 };

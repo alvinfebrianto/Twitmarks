@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { log } from "evlog";
+import { createWorkersLogger } from "evlog/workers";
 import DOMPurify from "isomorphic-dompurify";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
 
@@ -90,38 +90,44 @@ async function parseJsonBody(
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
+  const log = createWorkersLogger(request);
   try {
     const db = locals.runtime.env.DB;
     const adminSecret = locals.runtime.env.ADMIN_SECRET;
 
-    log.info({
-      tag: "api",
-      message: "POST /api/tweets - Processing request",
-      hasAuthHeader: !!request.headers.get("Authorization"),
+    log.set({
+      api: {
+        route: "POST /api/tweets",
+        hasAuth: !!request.headers.get("Authorization"),
+      },
     });
 
     if (!db) {
-      return errorResponse(errors.database("check database connection"));
+      const error = errors.database("check database connection");
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     const authError = await verifyAdmin(request, adminSecret);
     if (authError) {
+      log.emit({ status: 401 });
       return authError;
     }
 
     const bodyOrError = await parseJsonBody(request);
     if (bodyOrError instanceof Response) {
+      log.emit({ status: 400 });
       return bodyOrError;
     }
     const body = bodyOrError;
 
     if (!body.embed_html || typeof body.embed_html !== "string") {
-      return errorResponse(
-        errors.badRequest(
-          "embed_html",
-          "embed_html is required and must be a string"
-        )
+      const error = errors.badRequest(
+        "embed_html",
+        "embed_html is required and must be a string"
       );
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     const sanitizedHtml = DOMPurify.sanitize(body.embed_html, {
@@ -130,12 +136,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ALLOWED_URI_REGEXP: ALLOWED_URI_REGEX,
     });
     if (!sanitizedHtml.trim()) {
-      return errorResponse(
-        errors.badRequest(
-          "embed_html",
-          "embed_html contained no allowed content after sanitization"
-        )
+      const error = errors.badRequest(
+        "embed_html",
+        "embed_html contained no allowed content after sanitization"
       );
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     const result = await db
@@ -157,11 +163,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const sortOrder = createdTweet?.sort_order ?? 1;
     const createdAt = createdTweet?.created_at ?? new Date().toISOString();
 
-    log.info({
-      tag: "api",
-      message: "POST /api/tweets - Tweet created successfully",
-      id: tweetId,
-    });
+    log.set({ tweet: { id: tweetId, sortOrder } });
+    log.emit({ status: 201 });
 
     return jsonResponse(
       {
@@ -175,29 +178,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to add tweet");
-    log.error({
-      tag: "api",
-      message: "POST /api/tweets - Error",
-      error: evlogError.message,
-      status: evlogError.status,
-      why: evlogError.why,
-    });
-
+    log.error(evlogError);
+    log.emit({ status: evlogError.status });
     return errorResponse(evlogError);
   }
 };
 
-export const GET: APIRoute = async ({ locals }) => {
+export const GET: APIRoute = async ({ request, locals }) => {
+  const log = createWorkersLogger(request);
   try {
     const db = locals.runtime.env.DB;
 
-    log.info({
-      tag: "api",
-      message: "GET /api/tweets - Fetching tweets",
-    });
+    log.set({ api: { route: "GET /api/tweets" } });
 
     if (!db) {
-      return errorResponse(errors.database("check database connection"));
+      const error = errors.database("check database connection");
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     const result = await db
@@ -206,55 +203,53 @@ export const GET: APIRoute = async ({ locals }) => {
       )
       .all();
 
-    log.info({
-      tag: "api",
-      message: `GET /api/tweets - Retrieved ${result.results?.length ?? 0} tweets`,
-    });
+    const count = result.results?.length ?? 0;
+    log.set({ tweets: { count } });
+    log.emit({ status: 200 });
 
     return jsonResponse(result.results ?? []);
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to fetch tweets");
-    log.error({
-      tag: "api",
-      message: "GET /api/tweets - Error",
-      error: evlogError.message,
-      status: evlogError.status,
-      why: evlogError.why,
-    });
-
+    log.error(evlogError);
+    log.emit({ status: evlogError.status });
     return errorResponse(evlogError);
   }
 };
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
+  const log = createWorkersLogger(request);
   try {
     const db = locals.runtime.env.DB;
     const adminSecret = locals.runtime.env.ADMIN_SECRET;
 
-    log.info({
-      tag: "api",
-      message: "DELETE /api/tweets - Processing request",
-    });
+    log.set({ api: { route: "DELETE /api/tweets" } });
 
     if (!db) {
-      return errorResponse(errors.database("check database connection"));
+      const error = errors.database("check database connection");
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     const authError = await verifyAdmin(request, adminSecret);
     if (authError) {
+      log.emit({ status: 401 });
       return authError;
     }
 
     const bodyOrError = await parseJsonBody(request);
     if (bodyOrError instanceof Response) {
+      log.emit({ status: 400 });
       return bodyOrError;
     }
     const body = bodyOrError;
 
     if (!Number.isInteger(body.id) || (body.id as number) < 1) {
-      return errorResponse(
-        errors.badRequest("id", "id is required and must be a positive integer")
+      const error = errors.badRequest(
+        "id",
+        "id is required and must be a positive integer"
       );
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     const result = await db
@@ -263,51 +258,46 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
       .run();
 
     if (result.meta?.changes === 0) {
-      return errorResponse(errors.notFound("tweet"));
+      const error = errors.notFound("tweet");
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
-    log.info({
-      tag: "api",
-      message: "DELETE /api/tweets - Tweet deleted",
-      id: body.id,
-    });
+    log.set({ tweet: { id: body.id } });
+    log.emit({ status: 200 });
 
     return jsonResponse({ success: true, id: body.id });
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to delete tweet");
-    log.error({
-      tag: "api",
-      message: "DELETE /api/tweets - Error",
-      error: evlogError.message,
-      status: evlogError.status,
-      why: evlogError.why,
-    });
-
+    log.error(evlogError);
+    log.emit({ status: evlogError.status });
     return errorResponse(evlogError);
   }
 };
 
 export const PATCH: APIRoute = async ({ request, locals }) => {
+  const log = createWorkersLogger(request);
   try {
     const db = locals.runtime.env.DB;
     const adminSecret = locals.runtime.env.ADMIN_SECRET;
 
-    log.info({
-      tag: "api",
-      message: "PATCH /api/tweets - Processing swap request",
-    });
+    log.set({ api: { route: "PATCH /api/tweets" } });
 
     if (!db) {
-      return errorResponse(errors.database("check database connection"));
+      const error = errors.database("check database connection");
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     const authError = await verifyAdmin(request, adminSecret);
     if (authError) {
+      log.emit({ status: 401 });
       return authError;
     }
 
     const bodyOrError = await parseJsonBody(request);
     if (bodyOrError instanceof Response) {
+      log.emit({ status: 400 });
       return bodyOrError;
     }
     const body = bodyOrError;
@@ -317,21 +307,21 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
       (body.movedId as number) < 1 ||
       (body.targetId as number) < 1
     ) {
-      return errorResponse(
-        errors.badRequest(
-          "movedId/targetId",
-          "movedId and targetId are required and must be positive integers"
-        )
+      const error = errors.badRequest(
+        "movedId/targetId",
+        "movedId and targetId are required and must be positive integers"
       );
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     if (body.movedId === body.targetId) {
-      return errorResponse(
-        errors.badRequest(
-          "movedId/targetId",
-          "movedId and targetId must be different"
-        )
+      const error = errors.badRequest(
+        "movedId/targetId",
+        "movedId and targetId must be different"
       );
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     const [movedTweet, targetTweet] = await Promise.all([
@@ -346,7 +336,9 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     ]);
 
     if (!(movedTweet && targetTweet)) {
-      return errorResponse(errors.notFound("tweet"));
+      const error = errors.notFound("tweet");
+      log.emit({ status: error.status });
+      return errorResponse(error);
     }
 
     await db.batch([
@@ -358,24 +350,14 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
         .bind(movedTweet.sort_order, body.targetId),
     ]);
 
-    log.info({
-      tag: "api",
-      message: "PATCH /api/tweets - Swap complete",
-      movedId: body.movedId,
-      targetId: body.targetId,
-    });
+    log.set({ swap: { movedId: body.movedId, targetId: body.targetId } });
+    log.emit({ status: 200 });
 
     return jsonResponse({ success: true });
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to swap tweets");
-    log.error({
-      tag: "api",
-      message: "PATCH /api/tweets - Error",
-      error: evlogError.message,
-      status: evlogError.status,
-      why: evlogError.why,
-    });
-
+    log.error(evlogError);
+    log.emit({ status: evlogError.status });
     return errorResponse(evlogError);
   }
 };

@@ -1,4 +1,6 @@
 import type { APIRoute } from "astro";
+import { createWorkersLogger } from "evlog/workers";
+import { ensureEvlogError } from "../../lib/evlog";
 
 export const prerender = false;
 
@@ -82,12 +84,18 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&#x27;/g, "'");
 }
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, request }) => {
+  const log = createWorkersLogger(request);
   const target = url.searchParams.get("url");
   const targetUrl = target ? parseTarget(target) : null;
+
   if (!targetUrl) {
+    log.set({ og: { url: target, valid: false } });
+    log.emit({ status: 400 });
     return Response.json({ error: "Invalid url" }, { status: 400 });
   }
+
+  log.set({ og: { domain: targetUrl.hostname.replace(WWW_RE, "") } });
 
   try {
     const res = await fetch(targetUrl, {
@@ -99,6 +107,8 @@ export const GET: APIRoute = async ({ url }) => {
     });
 
     if (!res.ok) {
+      log.set({ og: { fetchStatus: res.status, success: false } });
+      log.emit({ status: 502 });
       return Response.json({ error: "Fetch failed" }, { status: 502 });
     }
 
@@ -136,6 +146,9 @@ export const GET: APIRoute = async ({ url }) => {
 
     const domain = targetUrl.hostname.replace(WWW_RE, "");
 
+    log.set({ og: { domain, hasImage: !!image, hasTitle: !!title } });
+    log.emit({ status: 200 });
+
     return new Response(JSON.stringify({ image, title, description, domain }), {
       status: 200,
       headers: {
@@ -143,7 +156,10 @@ export const GET: APIRoute = async ({ url }) => {
         "Cache-Control": "public, max-age=86400",
       },
     });
-  } catch {
+  } catch (error) {
+    const evlogError = ensureEvlogError(error, "Failed to fetch OG metadata");
+    log.error(evlogError);
+    log.emit({ status: 502 });
     return Response.json({ error: "Fetch failed" }, { status: 502 });
   }
 };
