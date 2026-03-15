@@ -561,19 +561,29 @@ const CustomEmbeddedTweet = ({
     return preview;
   }, [tweet.entities]);
 
+  const hasMedia = (tweet.mediaDetails?.length ?? 0) > 0;
+  const useCustomMedia =
+    hasMedia &&
+    onImageClick &&
+    tweet.mediaDetails?.every((m) => m.type === "photo");
+
+  const renderMedia = () => {
+    if (useCustomMedia) {
+      return <CustomTweetMedia onImageClick={onImageClick} tweet={tweet} />;
+    }
+    if (hasMedia) {
+      return <TweetMedia tweet={tweet} />;
+    }
+    return null;
+  };
+
   return (
     <TweetContainer>
       <TweetHeader tweet={tweet} />
       {tweet.in_reply_to_status_id_str && <TweetInReplyTo tweet={tweet} />}
       <TweetBody tweet={tweet} />
       {previewUrl && <TweetUrlCard url={previewUrl} />}
-      {tweet.mediaDetails?.length &&
-      onImageClick &&
-      tweet.mediaDetails.every((m) => m.type === "photo") ? (
-        <CustomTweetMedia onImageClick={onImageClick} tweet={tweet} />
-      ) : (
-        tweet.mediaDetails?.length && <TweetMedia tweet={tweet} />
-      )}
+      {renderMedia()}
       {tweet.quoted_tweet && <QuotedTweet tweet={tweet.quoted_tweet} />}
       <TweetInfo tweet={tweet} />
       <TweetActions tweet={tweet} />
