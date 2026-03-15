@@ -1,6 +1,7 @@
-import { createError, type EvlogError, initLogger } from "evlog";
+import { createError, type EvlogError } from "evlog";
+import { initWorkersLogger } from "evlog/workers";
 
-initLogger({
+initWorkersLogger({
   env: {
     service: "twitmarks",
     environment: import.meta.env?.MODE ?? "development",
