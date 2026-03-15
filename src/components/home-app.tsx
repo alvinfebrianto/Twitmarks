@@ -30,6 +30,7 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   enrichTweet,
+  getMediaUrl,
   QuotedTweet,
   TweetActions,
   TweetBody,
@@ -37,13 +38,12 @@ import {
   TweetHeader,
   TweetInfo,
   TweetInReplyTo,
-  TweetMedia,
   TweetNotFound,
   TweetReplies,
   TweetSkeleton,
   useTweet,
 } from "react-tweet";
-import type { Tweet } from "react-tweet/api";
+import type { MediaDetails, Tweet } from "react-tweet/api";
 import "react-tweet/theme.css";
 import { canReorder, moveTweet } from "../lib/tweet-order";
 import { clearSelection, toggleSelectId } from "../lib/tweet-selection";
@@ -154,12 +154,14 @@ export const MagneticButton = ({
 
 const ImageViewerModal = ({
   photos,
+  initialIndex = 0,
   onClose,
 }: {
   photos: TweetPhoto[];
+  initialIndex?: number;
   onClose: () => void;
 }) => {
-  const [current, setCurrent] = useState(0);
+  const [current, setCurrent] = useState(initialIndex);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -381,7 +383,157 @@ const TweetUrlCard = ({ url }: { url: string }) => {
   );
 };
 
-const CustomEmbeddedTweet = ({ tweet: t }: { tweet: Tweet }) => {
+function getSkeletonStyle(media: MediaDetails, itemCount: number) {
+  let paddingBottom = 56.25;
+  if (itemCount === 1) {
+    paddingBottom =
+      (100 / media.original_info.width) * media.original_info.height;
+  }
+  if (itemCount === 2) {
+    paddingBottom *= 2;
+  }
+  return {
+    width: media.type === "photo" ? undefined : ("unset" as const),
+    paddingBottom: `${String(paddingBottom)}%`,
+  };
+}
+
+const CustomTweetMedia = ({
+  tweet,
+  onImageClick,
+}: {
+  tweet: ReturnType<typeof enrichTweet>;
+  onImageClick: (photos: TweetPhoto[], index: number) => void;
+}) => {
+  const mediaDetails = tweet.mediaDetails;
+  if (!mediaDetails?.length) {
+    return null;
+  }
+
+  const length = mediaDetails.length;
+  const photos: TweetPhoto[] = mediaDetails
+    .filter((m): m is MediaDetails & { type: "photo" } => m.type === "photo")
+    .map((m) => ({
+      url: m.media_url_https,
+      width: m.original_info.width,
+      height: m.original_info.height,
+    }));
+
+  let photoIndex = 0;
+
+  return (
+    <div
+      className="react-tweet-media-root"
+      style={{
+        marginTop: "0.75rem",
+        overflow: "hidden",
+        position: "relative",
+        border: "var(--tweet-border)",
+        borderRadius: "12px",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridAutoRows: "1fr",
+          gap: "2px",
+          height: "100%",
+          width: "100%",
+          ...(length > 1 ? { gridTemplateColumns: "repeat(2, 1fr)" } : {}),
+          ...(length > 4 ? { gridTemplateRows: "repeat(2, 1fr)" } : {}),
+        }}
+      >
+        {mediaDetails.map((media, i) => {
+          if (media.type === "photo") {
+            const currentPhotoIndex = photoIndex;
+            photoIndex++;
+            return (
+              <button
+                aria-label={media.ext_alt_text ?? "View image"}
+                className="react-tweet-media-btn"
+                key={media.media_url_https}
+                onClick={() => onImageClick(photos, currentPhotoIndex)}
+                style={{
+                  position: "relative",
+                  height: "100%",
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  border: "none",
+                  padding: 0,
+                  background: "none",
+                  textDecoration: "none",
+                  outlineStyle: "none",
+                  ...(length === 3 && i === 0 ? { gridRow: "span 2" } : {}),
+                }}
+                type="button"
+              >
+                <div
+                  style={{
+                    paddingBottom: `${String(getSkeletonStyle(media, length).paddingBottom)}`,
+                    width: "100%",
+                    display: "block",
+                  }}
+                />
+                <img
+                  alt={media.ext_alt_text ?? "Image"}
+                  draggable
+                  height={media.original_info.height}
+                  src={getMediaUrl(media, "small")}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    height: "100%",
+                    width: "100%",
+                    margin: 0,
+                    objectFit: "cover",
+                    objectPosition: "center",
+                  }}
+                  width={media.original_info.width}
+                />
+              </button>
+            );
+          }
+
+          // For video/gif, render a non-interactive container (keep default behavior)
+          return (
+            <div
+              key={media.media_url_https}
+              style={{
+                position: "relative",
+                height: "100%",
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <div
+                style={{
+                  paddingBottom: `${String(getSkeletonStyle(media, length).paddingBottom)}`,
+                  width: media.type === "photo" ? undefined : "unset",
+                  display: "block",
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const CustomEmbeddedTweet = ({
+  tweet: t,
+  onImageClick,
+}: {
+  tweet: Tweet;
+  onImageClick?: (photos: TweetPhoto[], index: number) => void;
+}) => {
   const tweet = useMemo(() => enrichTweet(t), [t]);
 
   const previewUrl = useMemo(() => {
@@ -414,7 +566,9 @@ const CustomEmbeddedTweet = ({ tweet: t }: { tweet: Tweet }) => {
       {tweet.in_reply_to_status_id_str && <TweetInReplyTo tweet={tweet} />}
       <TweetBody tweet={tweet} />
       {previewUrl && <TweetUrlCard url={previewUrl} />}
-      {tweet.mediaDetails?.length ? <TweetMedia tweet={tweet} /> : null}
+      {tweet.mediaDetails?.length && onImageClick ? (
+        <CustomTweetMedia onImageClick={onImageClick} tweet={tweet} />
+      ) : null}
       {tweet.quoted_tweet && <QuotedTweet tweet={tweet.quoted_tweet} />}
       <TweetInfo tweet={tweet} />
       <TweetActions tweet={tweet} />
@@ -452,7 +606,7 @@ const TweetEmbed = ({
   onMoveUp: (id: number) => void;
   onMoveDown: (id: number) => void;
   onToggleSelect: (id: number) => void;
-  onOpenImageViewer: (photos: TweetPhoto[]) => void;
+  onOpenImageViewer: (photos: TweetPhoto[], index?: number) => void;
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -525,6 +679,13 @@ const TweetEmbed = ({
     return () => observer.disconnect();
   }, [nearViewport]);
 
+  const handleInlineImageClick = useCallback(
+    (photos: TweetPhoto[], index: number) => {
+      onOpenImageViewer(photos, index);
+    },
+    [onOpenImageViewer]
+  );
+
   const renderTweetContent = () => {
     if (!nearViewport) {
       return <TweetSkeleton />;
@@ -538,7 +699,12 @@ const TweetEmbed = ({
     if (error || !tweetData) {
       return <TweetNotFound />;
     }
-    return <CustomEmbeddedTweet tweet={tweetData} />;
+    return (
+      <CustomEmbeddedTweet
+        onImageClick={handleInlineImageClick}
+        tweet={tweetData}
+      />
+    );
   };
 
   return (
@@ -847,10 +1013,15 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const [imageViewerPhotos, setImageViewerPhotos] = useState<
     TweetPhoto[] | null
   >(null);
+  const [imageViewerInitialIndex, setImageViewerInitialIndex] = useState(0);
 
-  const handleOpenImageViewer = useCallback((photos: TweetPhoto[]) => {
-    setImageViewerPhotos(photos);
-  }, []);
+  const handleOpenImageViewer = useCallback(
+    (photos: TweetPhoto[], index = 0) => {
+      setImageViewerPhotos(photos);
+      setImageViewerInitialIndex(index);
+    },
+    []
+  );
 
   const persistAdminSecret = useCallback((secret: string) => {
     const trimmed = secret.trim();
@@ -1724,6 +1895,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       <AnimatePresence>
         {imageViewerPhotos && imageViewerPhotos.length > 0 && (
           <ImageViewerModal
+            initialIndex={imageViewerInitialIndex}
             key="image-viewer"
             onClose={() => setImageViewerPhotos(null)}
             photos={imageViewerPhotos}
