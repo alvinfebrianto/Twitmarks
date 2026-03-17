@@ -72,14 +72,31 @@ export function AdminPromptDialog({
               </button>
             </div>
             <form className="flex flex-col gap-4 p-6" onSubmit={handleSubmit}>
-              <input
-                autoFocus
-                className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
-                onChange={(e) => setAdminInput(e.target.value)}
-                placeholder="Enter admin secret"
-                type="password"
-                value={adminInput}
-              />
+              <div className="relative">
+                <input
+                  autoFocus
+                  className="w-full rounded-2xl border border-zinc-200 bg-white py-3 pr-12 pl-4 text-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                  onChange={(e) => setAdminInput(e.target.value)}
+                  placeholder="Enter admin secret"
+                  type="password"
+                  value={adminInput}
+                />
+                <AnimatePresence>
+                  {adminInput && (
+                    <motion.button
+                      animate={{ opacity: 1, scale: 1 }}
+                      aria-label="Clear secret"
+                      className="absolute inset-y-0 right-4 flex items-center text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-200"
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      onClick={() => setAdminInput("")}
+                      type="button"
+                    >
+                      <X aria-hidden="true" className="h-4 w-4" weight="bold" />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
               <button
                 className="w-full rounded-full bg-zinc-950 px-6 py-3 font-medium text-sm text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200"
                 disabled={!adminInput.trim()}

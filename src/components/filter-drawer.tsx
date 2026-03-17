@@ -88,12 +88,27 @@ export function FilterDrawer({
                 </div>
                 <input
                   aria-label="Search tweets"
-                  className="w-full rounded-2xl border border-zinc-200 bg-white py-4 pr-4 pl-12 text-sm shadow-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                  className="w-full rounded-2xl border border-zinc-200 bg-white py-4 pr-12 pl-12 text-sm shadow-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
                   onChange={(e) => onSearchQueryChange(e.target.value)}
                   placeholder="Search tweets..."
                   type="text"
                   value={searchQuery}
                 />
+                <AnimatePresence>
+                  {searchQuery && (
+                    <motion.button
+                      animate={{ opacity: 1, scale: 1 }}
+                      aria-label="Clear search"
+                      className="absolute inset-y-0 right-4 flex items-center text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-200"
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      onClick={() => onSearchQueryChange("")}
+                      type="button"
+                    >
+                      <X aria-hidden="true" className="h-4 w-4" weight="bold" />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
               </div>
 
               <div className="grid grid-cols-2 gap-6">

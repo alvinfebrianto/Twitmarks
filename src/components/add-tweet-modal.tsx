@@ -113,23 +113,44 @@ export function AddTweetModal({
                 >
                   Admin Secret
                 </label>
-                <input
-                  className={cn(
-                    "w-full rounded-2xl border bg-white px-4 py-3 text-sm transition-all",
-                    "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
-                    "dark:bg-zinc-900 dark:text-zinc-100",
-                    (error && errorForAuth) || (error && !errorForEmbedHtml)
-                      ? "border-red-300 dark:border-red-700"
-                      : "border-zinc-200 dark:border-zinc-800"
-                  )}
-                  disabled={isSubmitting}
-                  id="admin-secret"
-                  onChange={(e) => setAdminSecret(e.target.value)}
-                  placeholder="Enter admin secret"
-                  required
-                  type="password"
-                  value={adminSecret}
-                />
+                <div className="relative">
+                  <input
+                    className={cn(
+                      "w-full rounded-2xl border bg-white py-3 pr-12 pl-4 text-sm transition-all",
+                      "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
+                      "dark:bg-zinc-900 dark:text-zinc-100",
+                      (error && errorForAuth) || (error && !errorForEmbedHtml)
+                        ? "border-red-300 dark:border-red-700"
+                        : "border-zinc-200 dark:border-zinc-800"
+                    )}
+                    disabled={isSubmitting}
+                    id="admin-secret"
+                    onChange={(e) => setAdminSecret(e.target.value)}
+                    placeholder="Enter admin secret"
+                    required
+                    type="password"
+                    value={adminSecret}
+                  />
+                  <AnimatePresence>
+                    {adminSecret && !isSubmitting && (
+                      <motion.button
+                        animate={{ opacity: 1, scale: 1 }}
+                        aria-label="Clear secret"
+                        className="absolute inset-y-0 right-4 flex items-center text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-200"
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        onClick={() => setAdminSecret("")}
+                        type="button"
+                      >
+                        <X
+                          aria-hidden="true"
+                          className="h-4 w-4"
+                          weight="bold"
+                        />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -139,23 +160,44 @@ export function AddTweetModal({
                 >
                   Twitter Embed Code
                 </label>
-                <textarea
-                  aria-label="Twitter Embed Code"
-                  className={cn(
-                    "min-h-[160px] w-full rounded-2xl border bg-white p-4 font-mono text-sm transition-all",
-                    "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
-                    "dark:bg-zinc-900 dark:text-zinc-100",
-                    (error && errorForEmbedHtml) || (error && !errorForAuth)
-                      ? "border-red-300 dark:border-red-700"
-                      : "border-zinc-200 dark:border-zinc-800"
-                  )}
-                  disabled={isSubmitting}
-                  id="embed-html"
-                  onChange={(e) => setEmbedHtml(e.target.value)}
-                  placeholder="Paste Twitter embed code here..."
-                  required
-                  value={embedHtml}
-                />
+                <div className="relative">
+                  <textarea
+                    aria-label="Twitter Embed Code"
+                    className={cn(
+                      "min-h-[160px] w-full rounded-2xl border bg-white py-4 pr-12 pl-4 font-mono text-sm transition-all",
+                      "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
+                      "dark:bg-zinc-900 dark:text-zinc-100",
+                      (error && errorForEmbedHtml) || (error && !errorForAuth)
+                        ? "border-red-300 dark:border-red-700"
+                        : "border-zinc-200 dark:border-zinc-800"
+                    )}
+                    disabled={isSubmitting}
+                    id="embed-html"
+                    onChange={(e) => setEmbedHtml(e.target.value)}
+                    placeholder="Paste Twitter embed code here..."
+                    required
+                    value={embedHtml}
+                  />
+                  <AnimatePresence>
+                    {embedHtml && !isSubmitting && (
+                      <motion.button
+                        animate={{ opacity: 1, scale: 1 }}
+                        aria-label="Clear embed code"
+                        className="absolute top-4 right-4 flex items-center text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-200"
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        onClick={() => setEmbedHtml("")}
+                        type="button"
+                      >
+                        <X
+                          aria-hidden="true"
+                          className="h-4 w-4"
+                          weight="bold"
+                        />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
                   Paste the HTML embed code from Twitter&apos;s &quot;Embed
                   Tweet&quot; option.
