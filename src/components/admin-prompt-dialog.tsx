@@ -53,7 +53,7 @@ export function AdminPromptDialog({
             exit={{ y: 20, opacity: 0 }}
             initial={{ y: 20, opacity: 0 }}
             role="dialog"
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="flex items-center justify-between border-zinc-100 border-b px-6 py-4 dark:border-zinc-800">
               <h2

@@ -76,9 +76,8 @@ export function ThemeToggle() {
         "dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
       )}
       onClick={toggleTheme}
-      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       type="button"
-      whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
     >
       <motion.div
@@ -88,7 +87,7 @@ export function ThemeToggle() {
         }}
         className="absolute"
         initial={false}
-        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       >
         <Sun aria-hidden="true" className="h-4 w-4" weight="regular" />
       </motion.div>
@@ -100,7 +99,7 @@ export function ThemeToggle() {
         }}
         className="absolute"
         initial={false}
-        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       >
         <Moon aria-hidden="true" className="h-4 w-4" weight="regular" />
       </motion.div>

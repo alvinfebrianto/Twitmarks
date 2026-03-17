@@ -5,7 +5,6 @@
 @theme {
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   --color-zinc-950: #09090b;
   --color-zinc-900: #18181b;
@@ -35,11 +34,11 @@
 
 @layer utilities {
   .glass-panel {
-    @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_8px_32px_-12px_rgba(0,0,0,0.08)];
+    @apply bg-white border border-zinc-200 shadow-sm;
   }
 
   html.dark .glass-panel {
-    @apply bg-zinc-900/70 border-zinc-800/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_32px_-12px_rgba(0,0,0,0.3)];
+    @apply bg-zinc-900 border-zinc-800 shadow-sm;
   }
 
   .hide-scrollbar::-webkit-scrollbar {

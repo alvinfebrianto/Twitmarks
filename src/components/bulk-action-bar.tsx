@@ -29,7 +29,7 @@ export function BulkActionBar({
       className="fixed inset-x-4 bottom-8 z-50 mx-auto max-w-sm"
       exit={{ y: 20, opacity: 0 }}
       initial={{ y: 20, opacity: 0 }}
-      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="glass-panel flex items-center justify-between gap-3 rounded-2xl px-5 py-3.5 dark:border dark:border-zinc-700/50">
         {isConfirming ? (

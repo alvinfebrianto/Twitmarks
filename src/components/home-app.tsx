@@ -109,12 +109,12 @@ const ImageViewerModal = ({
             onClose();
           }
         }}
-        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="relative flex max-h-[90dvh] max-w-5xl cursor-default flex-col items-center gap-4">
           <img
             alt="Tweet media"
-            className="h-full max-h-[80dvh] w-full max-w-full rounded-2xl object-cover shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]"
+            className="h-full max-h-[80dvh] w-full max-w-full rounded-2xl object-contain shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]"
             height={photo.height}
             src={`${photo.url}?format=jpg&name=large`}
             width={photo.width}
@@ -1186,11 +1186,12 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
 
             <MagneticButton
               aria-label="Add new tweet"
-              className="gap-0 rounded-full bg-zinc-950 px-3 py-2 font-medium text-white text-xs shadow-lg shadow-zinc-950/15 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/15"
+              className="gap-1.5 rounded-full bg-zinc-950 px-3 py-2 font-medium text-white text-xs shadow-lg shadow-zinc-950/15 dark:bg-zinc-100 dark:text-zinc-950 dark:shadow-zinc-100/15"
               onClick={() => setIsAddModalOpen(true)}
               type="button"
             >
               <Plus aria-hidden="true" className="h-3.5 w-3.5" weight="bold" />
+              <span className="hidden sm:inline">Add</span>
             </MagneticButton>
           </div>
         </div>

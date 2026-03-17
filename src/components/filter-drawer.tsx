@@ -52,14 +52,14 @@ export function FilterDrawer({
             onClick={onClose}
           />
           <motion.div
-            animate={{ y: 0, opacity: 1 }}
+            animate={{ x: 0 }}
             aria-labelledby="filter-modal-title"
             aria-modal={true}
-            className="fixed inset-x-4 top-[8%] z-[70] mx-auto flex max-h-[85vh] max-w-lg flex-col overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
-            exit={{ y: 20, opacity: 0 }}
-            initial={{ y: 20, opacity: 0 }}
+            className="fixed inset-y-0 right-0 z-[70] flex w-full max-w-sm flex-col overflow-hidden border-zinc-200 border-l bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+            exit={{ x: "100%" }}
+            initial={{ x: "100%" }}
             role="dialog"
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="flex items-center justify-between border-zinc-100 border-b px-8 py-5 dark:border-zinc-800">
               <h2
@@ -181,26 +181,9 @@ export function FilterDrawer({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4 border-zinc-200 border-t pt-2 dark:border-zinc-800">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4 dark:border-zinc-800/50 dark:bg-zinc-800/30">
-                    <span className="font-medium text-xs text-zinc-400 uppercase tracking-widest">
-                      Total
-                    </span>
-                    <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter dark:text-zinc-100">
-                      {totalCount}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4 dark:border-zinc-800/50 dark:bg-zinc-800/30">
-                    <span className="font-medium text-xs text-zinc-400 uppercase tracking-widest">
-                      Showing
-                    </span>
-                    <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter dark:text-zinc-100">
-                      {filteredCount}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <p className="border-zinc-200 border-t pt-4 text-sm text-zinc-400 dark:border-zinc-800">
+                Showing {filteredCount} of {totalCount} tweets
+              </p>
             </div>
           </motion.div>
         </>
