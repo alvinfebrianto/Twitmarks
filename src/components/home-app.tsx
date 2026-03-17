@@ -101,6 +101,8 @@ const ImageViewerModal = ({
       />
       <motion.div
         animate={{ opacity: 1, scale: 1 }}
+        aria-label="Image viewer"
+        aria-modal={true}
         className="fixed inset-0 z-[90] flex cursor-zoom-out items-center justify-center p-6"
         exit={{ opacity: 0, scale: 0.96 }}
         initial={{ opacity: 0, scale: 0.96 }}
@@ -109,6 +111,7 @@ const ImageViewerModal = ({
             onClose();
           }
         }}
+        role="dialog"
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="relative flex max-h-[90dvh] max-w-5xl cursor-default flex-col items-center gap-4">
@@ -123,7 +126,7 @@ const ImageViewerModal = ({
             <div className="flex items-center gap-3">
               <button
                 aria-label="Previous image"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 disabled:opacity-30"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 disabled:opacity-30"
                 disabled={current === 0}
                 onClick={() => setCurrent((p) => Math.max(0, p - 1))}
                 type="button"
@@ -139,7 +142,7 @@ const ImageViewerModal = ({
               </span>
               <button
                 aria-label="Next image"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 disabled:opacity-30"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 disabled:opacity-30"
                 disabled={current === photos.length - 1}
                 onClick={() =>
                   setCurrent((p) => Math.min(photos.length - 1, p + 1))
@@ -205,14 +208,8 @@ const TweetUrlCard = ({ url }: { url: string }) => {
 
   return (
     <a
+      className="tweet-url-card"
       href={url}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLAnchorElement).style.backgroundColor =
-          "var(--tweet-bg-color-hover)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "";
-      }}
       rel="noopener noreferrer"
       style={{
         border: "var(--tweet-border)",
@@ -673,7 +670,7 @@ const TweetEmbed = ({
       {hasMedia && !isSelectionMode && (
         <button
           aria-label="View tweet images"
-          className="absolute top-3 left-3 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-zinc-950/50 text-white opacity-0 shadow-sm backdrop-blur-md transition-opacity duration-200 group-hover:opacity-100"
+          className="absolute top-3 left-3 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-zinc-950/50 text-white opacity-0 shadow-sm backdrop-blur-md transition-opacity duration-200 group-hover:opacity-100"
           onClick={handleMediaClick}
           type="button"
         >
@@ -881,6 +878,23 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     });
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    const hasOverlay =
+      isFilterDrawerOpen ||
+      isAddModalOpen ||
+      isAdminPromptOpen ||
+      (imageViewerPhotos !== null && imageViewerPhotos.length > 0);
+    document.body.style.overflow = hasOverlay ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [
+    isFilterDrawerOpen,
+    isAddModalOpen,
+    isAdminPromptOpen,
+    imageViewerPhotos,
+  ]);
 
   useEscapeToClose(isFilterDrawerOpen, () => setIsFilterDrawerOpen(false));
   useEscapeToClose(isAdminPromptOpen, () => setIsAdminPromptOpen(false));

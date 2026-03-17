@@ -53,4 +53,9 @@
     max-width: 100% !important;
     margin: 0 !important;
   }
+
+  .tweet-url-card:hover,
+  .tweet-url-card:focus-visible {
+    background-color: var(--tweet-bg-color-hover);
+  }
 }
