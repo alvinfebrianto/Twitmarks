@@ -76,13 +76,19 @@ export function AddTweetModal({
           />
           <motion.div
             animate={{ y: 0, opacity: 1 }}
+            aria-labelledby="add-tweet-modal-title"
+            aria-modal={true}
             className="fixed inset-x-4 top-[10%] z-[70] mx-auto max-w-lg overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
             exit={{ y: 20, opacity: 0 }}
             initial={{ y: 20, opacity: 0 }}
+            role="dialog"
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="flex items-center justify-between border-zinc-100 border-b px-6 py-4 dark:border-zinc-800">
-              <h2 className="font-display font-semibold text-xl dark:text-zinc-50">
+              <h2
+                className="font-display font-semibold text-xl dark:text-zinc-50"
+                id="add-tweet-modal-title"
+              >
                 Add Tweet Embed
               </h2>
               <button

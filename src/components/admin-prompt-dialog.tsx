@@ -73,9 +73,13 @@ export function AdminPromptDialog({
             </div>
             <form className="flex flex-col gap-4 p-6" onSubmit={handleSubmit}>
               <div className="relative">
+                <label className="sr-only" htmlFor="admin-secret-input">
+                  Admin secret
+                </label>
                 <input
                   autoFocus
                   className="w-full rounded-2xl border border-zinc-200 bg-white py-3 pr-12 pl-4 text-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                  id="admin-secret-input"
                   onChange={(e) => setAdminInput(e.target.value)}
                   placeholder="Enter admin secret"
                   type="password"
