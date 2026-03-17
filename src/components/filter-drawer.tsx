@@ -131,7 +131,7 @@ export function FilterDrawer({
                           "flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-sm transition-all duration-300",
                           sortOption === sort
                             ? "bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
-                            : "text-zinc-500 hover:bg-white/70 hover:text-zinc-900 dark:hover:bg-zinc-800/50"
+                            : "text-zinc-500 hover:bg-white/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/70 dark:hover:text-zinc-100"
                         )}
                         key={sort}
                         onClick={() => onSortOptionChange(sort)}

@@ -114,7 +114,7 @@ const ImageViewerModal = ({
         <div className="relative flex max-h-[90dvh] max-w-5xl cursor-default flex-col items-center gap-4">
           <img
             alt="Tweet media"
-            className="max-h-[80dvh] max-w-full rounded-2xl object-contain shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]"
+            className="h-full max-h-[80dvh] w-full max-w-full rounded-2xl object-cover shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]"
             height={photo.height}
             src={`${photo.url}?format=jpg&name=large`}
             width={photo.width}
@@ -1101,8 +1101,8 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     <div className="min-h-[100dvh] bg-zinc-50 font-sans text-zinc-950 selection:bg-accent selection:text-white dark:bg-zinc-950 dark:text-zinc-50">
       <header className="pointer-events-none fixed top-0 right-0 left-0 z-50 px-3 py-2 md:px-4 md:py-3">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between">
-          <div className="glass-panel pointer-events-auto flex items-center gap-2 rounded-full px-3 py-2 md:gap-2.5 md:px-4">
-            <div className="flex h-5 w-5 items-center justify-center rounded-md bg-zinc-950 dark:bg-zinc-100">
+          <div className="glass-panel pointer-events-auto flex items-center gap-2.5 rounded-full py-2 pr-3.5 pl-2.5">
+            <div className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-zinc-950 dark:bg-zinc-100">
               <TwitterLogo
                 aria-hidden="true"
                 className="h-3.5 w-3.5 text-white dark:text-zinc-950"
@@ -1114,7 +1114,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
             </span>
           </div>
 
-          <div className="pointer-events-auto flex items-center gap-1.5 md:gap-2">
+          <div className="pointer-events-auto flex items-center gap-2">
             <ThemeToggle />
 
             <MagneticButton
