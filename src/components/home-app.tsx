@@ -12,21 +12,13 @@ import {
   LockSimpleOpen,
   MagnifyingGlass,
   Plus,
-  SortAscending,
-  SortDescending,
   Trash,
   TwitterLogo,
   X,
 } from "@phosphor-icons/react";
 import { Agentation } from "agentation";
 
-import {
-  AnimatePresence,
-  motion,
-  useMotionValue,
-  useSpring,
-} from "motion/react";
-import type React from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   enrichTweet,
@@ -46,112 +38,27 @@ import {
 } from "react-tweet";
 import type { MediaDetails, Tweet } from "react-tweet/api";
 import "react-tweet/theme.css";
+import type { DbTweet, TweetPhoto, UiTweet } from "../lib/tweet-helpers";
+import {
+  extractTweetId,
+  filterTweets,
+  hasTweetMedia,
+  normalizeTweet,
+  pruneSelectedIds,
+} from "../lib/tweet-helpers";
 import { canReorder, moveTweet } from "../lib/tweet-order";
-import { clearSelection, toggleSelectId } from "../lib/tweet-selection";
+import { toggleSelectId } from "../lib/tweet-selection";
+
 import { cn } from "../lib/utils";
 import { AddTweetModal } from "./add-tweet-modal";
+import { AdminPromptDialog } from "./admin-prompt-dialog";
+import { BulkActionBar } from "./bulk-action-bar";
+import { FilterDrawer } from "./filter-drawer";
+import { useAdminSession } from "./hooks/use-admin-session";
+import { useEscapeToClose } from "./hooks/use-escape-to-close";
+import { useResponsiveColumns } from "./hooks/use-responsive-columns";
+import { MagneticButton } from "./magnetic-button";
 import { ThemeToggle } from "./theme-toggle";
-
-export interface DbTweet {
-  created_at: string;
-  embed_html: string;
-  id: number;
-  sort_order: number;
-}
-
-interface UiTweet extends DbTweet {
-  createdAtMs: number;
-  searchBlob: string;
-}
-
-interface TweetPhoto {
-  height: number;
-  url: string;
-  width: number;
-}
-
-function extractTextContent(html: string): string {
-  if (typeof DOMParser === "undefined") {
-    return html.replace(/<[^>]*>/g, " ").toLowerCase();
-  }
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  return (doc.body.textContent ?? "").toLowerCase();
-}
-
-function normalizeTweet(tweet: DbTweet): UiTweet {
-  return {
-    ...tweet,
-    createdAtMs: new Date(tweet.created_at).getTime(),
-    searchBlob: extractTextContent(tweet.embed_html),
-  };
-}
-
-function extractTweetId(html: string): string | null {
-  const match = html.match(TWEET_ID_RE);
-  return match?.[1] ?? null;
-}
-
-function hasTweetMedia(html: string): boolean {
-  return TWEET_MEDIA_RE.test(html);
-}
-
-const SORTS = ["Manual", "Newest", "Oldest"];
-const DATES = ["All Time", "Last 7 Days", "Last 30 Days"];
-const TWEET_ID_RE = /(?:twitter|x)\.com\/\w+\/status\/(\d+)/;
-const TWEET_MEDIA_RE = /pic\.(twitter|x)\.com/;
-
-const springConfig = { damping: 15, stiffness: 150, mass: 0.1 };
-
-export const MagneticButton = ({
-  children,
-  className,
-  onClick,
-  type = "button",
-  "aria-label": ariaLabel,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  onClick?: () => void;
-  type?: "button" | "submit" | "reset";
-  "aria-label"?: string;
-}) => {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-
-  const springX = useSpring(x, springConfig);
-  const springY = useSpring(y, springConfig);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    x.set((e.clientX - centerX) * 0.2);
-    y.set((e.clientY - centerY) * 0.2);
-  };
-
-  const handleMouseLeave = () => {
-    x.set(0);
-    y.set(0);
-  };
-
-  return (
-    <motion.button
-      aria-label={ariaLabel}
-      className={cn(
-        "relative flex items-center justify-center transition-colors",
-        className
-      )}
-      onClick={onClick}
-      onMouseLeave={handleMouseLeave}
-      onMouseMove={handleMouseMove}
-      style={{ x: springX, y: springY }}
-      type={type}
-      whileTap={{ scale: 0.95 }}
-    >
-      {children}
-    </motion.button>
-  );
-};
 
 const ImageViewerModal = ({
   photos,
@@ -884,110 +791,6 @@ const TweetEmbed = ({
   );
 };
 
-const BulkActionBar = ({
-  selectedCount,
-  totalCount,
-  isConfirming,
-  onSelectAll,
-  onRequestDelete,
-  onConfirm,
-  onCancelConfirm,
-}: {
-  selectedCount: number;
-  totalCount: number;
-  isConfirming: boolean;
-  onSelectAll: () => void;
-  onRequestDelete: () => void;
-  onConfirm: () => void;
-  onCancelConfirm: () => void;
-}) => {
-  const label = `${selectedCount} tweet${selectedCount !== 1 ? "s" : ""}`;
-  return (
-    <motion.div
-      animate={{ y: 0, opacity: 1 }}
-      className="fixed inset-x-4 bottom-8 z-50 mx-auto max-w-sm"
-      exit={{ y: 20, opacity: 0 }}
-      initial={{ y: 20, opacity: 0 }}
-      transition={{ type: "spring", damping: 25, stiffness: 200 }}
-    >
-      <div className="glass-panel flex items-center justify-between gap-3 rounded-2xl px-5 py-3.5 dark:border dark:border-zinc-700/50">
-        {isConfirming ? (
-          <>
-            <span className="font-medium text-sm text-zinc-700 dark:text-zinc-300">
-              Delete {label}?
-            </span>
-            <div className="flex gap-2">
-              <button
-                className="rounded-full bg-zinc-100 px-3 py-1.5 font-medium text-xs text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                onClick={onCancelConfirm}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="rounded-full bg-red-600 px-3 py-1.5 font-medium text-white text-xs shadow-sm transition-colors hover:bg-red-700 active:scale-[0.98]"
-                onClick={onConfirm}
-                type="button"
-              >
-                Confirm
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-accent px-2 py-0.5 font-medium text-white text-xs">
-                {selectedCount}
-              </span>
-              <span className="font-medium text-sm text-zinc-700 dark:text-zinc-300">
-                selected
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                aria-label={`Select all ${totalCount}`}
-                className="font-medium text-accent text-xs transition-colors hover:text-accent/80 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={selectedCount === totalCount}
-                onClick={onSelectAll}
-                type="button"
-              >
-                Select all {totalCount}
-              </button>
-              <button
-                aria-label={`Delete ${selectedCount} selected tweet${selectedCount !== 1 ? "s" : ""}`}
-                className="flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 font-medium text-white text-xs shadow-sm transition-colors hover:bg-red-700 active:scale-[0.98]"
-                onClick={onRequestDelete}
-                type="button"
-              >
-                <Trash
-                  aria-hidden="true"
-                  className="h-3.5 w-3.5"
-                  weight="bold"
-                />
-                <span>
-                  Delete {selectedCount} tweet{selectedCount !== 1 ? "s" : ""}
-                </span>
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </motion.div>
-  );
-};
-
-function pruneSelectedIds(
-  prev: Set<number>,
-  visibleIds: Set<number>
-): Set<number> {
-  if (prev.size === 0) {
-    return prev;
-  }
-  const next = new Set([...prev].filter((id) => visibleIds.has(id)));
-  return next.size === prev.size ? prev : next;
-}
-
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: main app component with many features
 export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const needsClientLoad = initialTweets == null;
   const [tweets, setTweets] = useState<UiTweet[]>(() =>
@@ -1002,28 +805,22 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const [addError, setAddError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
-  const [cols, setCols] = useState(3);
+  const cols = useResponsiveColumns();
   const [isDark, setIsDark] = useState(
     () =>
       typeof document !== "undefined" &&
       document.documentElement.classList.contains("dark")
   );
-  const gridRef = useRef<HTMLDivElement>(null);
 
-  const [adminSecret, setAdminSecret] = useState(() => {
-    try {
-      return sessionStorage.getItem("twitmarks_admin") ?? "";
-    } catch {
-      return "";
-    }
-  });
-  const isAdmin = adminSecret.length > 0;
+  const { adminSecret, isAdmin, persistAdminSecret, lockAdmin } =
+    useAdminSession();
 
   const [isAdminPromptOpen, setIsAdminPromptOpen] = useState(false);
-  const [adminInput, setAdminInput] = useState("");
 
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(clearSelection);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(
+    () => new Set<number>()
+  );
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   const [imageViewerPhotos, setImageViewerPhotos] = useState<
     TweetPhoto[] | null
@@ -1038,38 +835,10 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     []
   );
 
-  const persistAdminSecret = useCallback((secret: string) => {
-    const trimmed = secret.trim();
-    if (!trimmed) {
-      return;
-    }
-    try {
-      sessionStorage.setItem("twitmarks_admin", trimmed);
-    } catch {
-      // sessionStorage may be unavailable
-    }
-    setAdminSecret(trimmed);
-  }, []);
-
-  const unlockAdmin = () => {
-    persistAdminSecret(adminInput);
-    setAdminInput("");
-    setIsAdminPromptOpen(false);
-  };
-
-  const lockAdmin = useCallback(() => {
-    try {
-      sessionStorage.removeItem("twitmarks_admin");
-    } catch {
-      // sessionStorage may be unavailable
-    }
-    setAdminSecret("");
-  }, []);
-
   useEffect(() => {
     if (!isAdmin) {
       setSelectionMode(false);
-      setSelectedIds(clearSelection());
+      setSelectedIds(new Set());
       setConfirmingBulkDelete(false);
     }
   }, [isAdmin]);
@@ -1103,30 +872,6 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   }, [loadTweets]);
 
   useEffect(() => {
-    const updateCols = () => {
-      const width = window.innerWidth;
-      let next = 3;
-      if (width < 768) {
-        next = 1;
-      } else if (width < 1024) {
-        next = 2;
-      }
-      setCols((prev) => (prev === next ? prev : next));
-    };
-    updateCols();
-    let timeoutId: ReturnType<typeof setTimeout>;
-    const handleResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(updateCols, 100);
-    };
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      clearTimeout(timeoutId);
-    };
-  }, []);
-
-  useEffect(() => {
     const observer = new MutationObserver(() => {
       setIsDark(document.documentElement.classList.contains("dark"));
     });
@@ -1137,58 +882,13 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (!isFilterDrawerOpen) {
-      return;
-    }
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setIsFilterDrawerOpen(false);
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isFilterDrawerOpen]);
+  useEscapeToClose(isFilterDrawerOpen, () => setIsFilterDrawerOpen(false));
+  useEscapeToClose(isAdminPromptOpen, () => setIsAdminPromptOpen(false));
 
-  useEffect(() => {
-    if (!isAdminPromptOpen) {
-      return;
-    }
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setIsAdminPromptOpen(false);
-        setAdminInput("");
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isAdminPromptOpen]);
-
-  const filteredTweets = useMemo(() => {
-    let result = [...tweets];
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((t) => t.searchBlob.includes(q));
-    }
-
-    const now = Date.now();
-    if (dateFilter === "Last 7 Days") {
-      const cutoff = now - 7 * 24 * 60 * 60 * 1000;
-      result = result.filter((t) => t.createdAtMs > cutoff);
-    } else if (dateFilter === "Last 30 Days") {
-      const cutoff = now - 30 * 24 * 60 * 60 * 1000;
-      result = result.filter((t) => t.createdAtMs > cutoff);
-    }
-
-    if (sortOption === "Newest") {
-      result.sort((a, b) => b.createdAtMs - a.createdAtMs);
-    } else if (sortOption === "Oldest") {
-      result.sort((a, b) => a.createdAtMs - b.createdAtMs);
-    }
-
-    return result;
-  }, [tweets, searchQuery, dateFilter, sortOption]);
+  const filteredTweets = useMemo(
+    () => filterTweets(tweets, { searchQuery, dateFilter, sortOption }),
+    [tweets, searchQuery, dateFilter, sortOption]
+  );
 
   useEffect(() => {
     const visibleIds = new Set(filteredTweets.map((t) => t.id));
@@ -1327,7 +1027,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       const snapshot = [...tweets];
       setMutationError(null);
       setTweets((prev) => prev.filter((t) => !selectedIds.has(t.id)));
-      setSelectedIds(clearSelection());
+      setSelectedIds(new Set());
       setSelectionMode(false);
       setConfirmingBulkDelete(false);
 
@@ -1390,7 +1090,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   const toggleSelectionMode = useCallback(() => {
     if (selectionMode) {
       setSelectionMode(false);
-      setSelectedIds(clearSelection());
+      setSelectedIds(new Set());
       setConfirmingBulkDelete(false);
     } else {
       setSelectionMode(true);
@@ -1498,7 +1198,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
 
       <main className="mx-auto max-w-[1400px] px-4 pt-24 pb-32 md:px-8">
         <div className="grid grid-cols-1 items-start gap-6">
-          <div ref={gridRef}>
+          <div>
             {loading && (
               <div className="flex w-full items-center justify-center p-16">
                 <motion.div
@@ -1645,226 +1345,28 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {isFilterDrawerOpen && (
-          <>
-            <motion.div
-              animate={{ opacity: 1 }}
-              className="fixed inset-0 z-[60] bg-zinc-950/20 backdrop-blur-sm dark:bg-zinc-950/60"
-              exit={{ opacity: 0 }}
-              initial={{ opacity: 0 }}
-              onClick={() => setIsFilterDrawerOpen(false)}
-            />
-            <motion.div
-              animate={{ y: 0, opacity: 1 }}
-              aria-labelledby="filter-modal-title"
-              aria-modal={true}
-              className="fixed inset-x-4 top-[8%] z-[70] mx-auto flex max-h-[85vh] max-w-lg flex-col overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
-              exit={{ y: 20, opacity: 0 }}
-              initial={{ y: 20, opacity: 0 }}
-              role="dialog"
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            >
-              <div className="flex items-center justify-between border-zinc-100 border-b px-8 py-5 dark:border-zinc-800">
-                <h2
-                  className="font-display font-semibold text-2xl dark:text-zinc-50"
-                  id="filter-modal-title"
-                >
-                  Filters
-                </h2>
-                <button
-                  aria-label="Close filters"
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
-                  onClick={() => setIsFilterDrawerOpen(false)}
-                  type="button"
-                >
-                  <X aria-hidden="true" className="h-5 w-5" />
-                </button>
-              </div>
+      <FilterDrawer
+        dateFilter={dateFilter}
+        filteredCount={filteredTweets.length}
+        isAdmin={isAdmin}
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        onDateFilterChange={setDateFilter}
+        onSearchQueryChange={setSearchQuery}
+        onSortOptionChange={setSortOption}
+        searchQuery={searchQuery}
+        sortOption={sortOption}
+        totalCount={tweets.length}
+      />
 
-              <div className="flex flex-col gap-6 overflow-y-auto p-8">
-                <div className="group relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
-                    <MagnifyingGlass
-                      aria-hidden="true"
-                      className="h-5 w-5 text-zinc-400 transition-colors group-focus-within:text-accent"
-                    />
-                  </div>
-                  <input
-                    aria-label="Search tweets"
-                    className="w-full rounded-2xl border border-zinc-200 bg-white py-4 pr-4 pl-12 text-sm shadow-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search tweets..."
-                    type="text"
-                    value={searchQuery}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="flex flex-col gap-3">
-                    <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
-                      Timeframe
-                    </h3>
-                    <div className="flex flex-col gap-1">
-                      {DATES.map((date) => (
-                        <button
-                          className={cn(
-                            "flex items-center rounded-xl border px-4 py-3 font-medium text-sm transition-all duration-300",
-                            dateFilter === date
-                              ? "border-zinc-300 bg-white text-zinc-950 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                              : "border-transparent bg-transparent text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                          )}
-                          key={date}
-                          onClick={() => setDateFilter(date)}
-                          type="button"
-                        >
-                          {date}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    <h3 className="font-bold text-xs text-zinc-400 uppercase tracking-widest">
-                      Sort By
-                    </h3>
-                    <div className="flex flex-col rounded-2xl border border-zinc-200/80 bg-zinc-50/50 p-1 dark:border-zinc-800/80 dark:bg-zinc-800/30">
-                      {SORTS.map((sort) => (
-                        <button
-                          className={cn(
-                            "flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-sm transition-all duration-300",
-                            sortOption === sort
-                              ? "bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
-                              : "text-zinc-500 hover:bg-white/70 hover:text-zinc-900 dark:hover:bg-zinc-800/50"
-                          )}
-                          key={sort}
-                          onClick={() => setSortOption(sort)}
-                          type="button"
-                        >
-                          {sort === "Newest" && (
-                            <SortDescending
-                              aria-hidden="true"
-                              className="h-4 w-4"
-                            />
-                          )}
-                          {sort === "Oldest" && (
-                            <SortAscending
-                              aria-hidden="true"
-                              className="h-4 w-4"
-                            />
-                          )}
-                          {sort === "Manual" && (
-                            <ArrowUp aria-hidden="true" className="h-4 w-4" />
-                          )}
-                          {sort}
-                        </button>
-                      ))}
-                    </div>
-                    {sortOption === "Manual" &&
-                      isAdmin &&
-                      (searchQuery || dateFilter !== "All Time") && (
-                        <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                          Clear search and date filters to enable reordering.
-                        </p>
-                      )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-4 border-zinc-200 border-t pt-2 dark:border-zinc-800">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4 dark:border-zinc-800/50 dark:bg-zinc-800/30">
-                      <span className="font-medium text-xs text-zinc-400 uppercase tracking-widest">
-                        Total
-                      </span>
-                      <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter dark:text-zinc-100">
-                        {tweets.length}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-1 rounded-2xl border border-zinc-200/50 bg-zinc-50 p-4 dark:border-zinc-800/50 dark:bg-zinc-800/30">
-                      <span className="font-medium text-xs text-zinc-400 uppercase tracking-widest">
-                        Showing
-                      </span>
-                      <span className="font-medium font-mono text-2xl text-zinc-950 tracking-tighter dark:text-zinc-100">
-                        {filteredTweets.length}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isAdminPromptOpen && (
-          <>
-            <motion.div
-              animate={{ opacity: 1 }}
-              className="fixed inset-0 z-[60] bg-zinc-950/20 backdrop-blur-sm dark:bg-zinc-950/60"
-              exit={{ opacity: 0 }}
-              initial={{ opacity: 0 }}
-              onClick={() => {
-                setIsAdminPromptOpen(false);
-                setAdminInput("");
-              }}
-            />
-            <motion.div
-              animate={{ y: 0, opacity: 1 }}
-              aria-labelledby="admin-modal-title"
-              aria-modal={true}
-              className="fixed inset-x-4 top-[20%] z-[70] mx-auto max-w-sm overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
-              exit={{ y: 20, opacity: 0 }}
-              initial={{ y: 20, opacity: 0 }}
-              role="dialog"
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            >
-              <div className="flex items-center justify-between border-zinc-100 border-b px-6 py-4 dark:border-zinc-800">
-                <h2
-                  className="font-display font-semibold text-lg dark:text-zinc-50"
-                  id="admin-modal-title"
-                >
-                  Admin Access
-                </h2>
-                <button
-                  aria-label="Close"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
-                  onClick={() => {
-                    setIsAdminPromptOpen(false);
-                    setAdminInput("");
-                  }}
-                  type="button"
-                >
-                  <X aria-hidden="true" className="h-4 w-4" />
-                </button>
-              </div>
-              <form
-                className="flex flex-col gap-4 p-6"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  unlockAdmin();
-                }}
-              >
-                <input
-                  autoFocus
-                  className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
-                  onChange={(e) => setAdminInput(e.target.value)}
-                  placeholder="Enter admin secret"
-                  type="password"
-                  value={adminInput}
-                />
-                <button
-                  className="w-full rounded-full bg-zinc-950 px-6 py-3 font-medium text-sm text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200"
-                  disabled={!adminInput.trim()}
-                  type="submit"
-                >
-                  Unlock
-                </button>
-              </form>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <AdminPromptDialog
+        isOpen={isAdminPromptOpen}
+        onClose={() => setIsAdminPromptOpen(false)}
+        onUnlock={(secret) => {
+          persistAdminSecret(secret);
+          setIsAdminPromptOpen(false);
+        }}
+      />
 
       <AddTweetModal
         error={addError}

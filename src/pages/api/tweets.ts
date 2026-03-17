@@ -8,27 +8,25 @@ export const prerender = false;
 const ALLOWED_URI_REGEX =
   /^(https?:\/\/)?(www\.)?(twitter\.com|x\.com|t\.co|pic\.twitter\.com|platform\.twitter\.com|pbs\.twimg\.com|video\.twimg\.com)\//i;
 
-async function verifyAdmin(
+function getDbOrThrow(locals: App.Locals): D1Database {
+  const db = locals.runtime.env.DB;
+  if (!db) {
+    throw errors.database("check database connection");
+  }
+  return db;
+}
+
+async function requireAdmin(
   request: Request,
   adminSecret: string | undefined
-): Promise<Response | null> {
+): Promise<void> {
   if (!adminSecret) {
-    const error = errors.internal("ADMIN_SECRET not configured");
-    return new Response(JSON.stringify(errorToObject(error)), {
-      status: error.status,
-      headers: { "Content-Type": "application/json" },
-    });
+    throw errors.internal("ADMIN_SECRET not configured");
   }
 
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
-    const error = errors.unauthorized(
-      "Missing Bearer token in Authorization header"
-    );
-    return new Response(JSON.stringify(errorToObject(error)), {
-      status: error.status,
-      headers: { "Content-Type": "application/json" },
-    });
+    throw errors.unauthorized("Missing Bearer token in Authorization header");
   }
 
   const token = authHeader.substring(7);
@@ -47,14 +45,8 @@ async function verifyAdmin(
   }
   const isValid = tokenHash.length === secretHash.length && hashDiff === 0;
   if (!isValid) {
-    const error = errors.unauthorized("Invalid token");
-    return new Response(JSON.stringify(errorToObject(error)), {
-      status: error.status,
-      headers: { "Content-Type": "application/json" },
-    });
+    throw errors.unauthorized("Invalid token");
   }
-
-  return null;
 }
 
 function jsonResponse(data: unknown, status = 200) {
@@ -71,30 +63,35 @@ function errorResponse(error: { status: number }) {
   });
 }
 
-async function parseJsonBody(
+async function readJsonObject(
   request: Request
-): Promise<Record<string, unknown> | Response> {
+): Promise<Record<string, unknown>> {
+  let body: unknown;
   try {
-    const body = await request.json();
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      return errorResponse(
-        errors.badRequest("body", "Request body must be a JSON object")
-      );
-    }
-    return body as Record<string, unknown>;
+    body = await request.json();
   } catch {
-    return errorResponse(
-      errors.badRequest("body", "Request body must be valid JSON")
+    throw errors.badRequest("body", "Request body must be valid JSON");
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw errors.badRequest("body", "Request body must be a JSON object");
+  }
+  return body as Record<string, unknown>;
+}
+
+function readPositiveInt(body: Record<string, unknown>, key: string): number {
+  const value = body[key];
+  if (!Number.isInteger(value) || (value as number) < 1) {
+    throw errors.badRequest(
+      key,
+      `${key} is required and must be a positive integer`
     );
   }
+  return value as number;
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const log = createWorkersLogger(request);
   try {
-    const db = locals.runtime.env.DB;
-    const adminSecret = locals.runtime.env.ADMIN_SECRET;
-
     log.set({
       api: {
         route: "POST /api/tweets",
@@ -102,32 +99,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
       },
     });
 
-    if (!db) {
-      const error = errors.database("check database connection");
-      log.emit({ status: error.status });
-      return errorResponse(error);
-    }
+    const db = getDbOrThrow(locals);
+    await requireAdmin(request, locals.runtime.env.ADMIN_SECRET);
 
-    const authError = await verifyAdmin(request, adminSecret);
-    if (authError) {
-      log.emit({ status: authError.status });
-      return authError;
-    }
-
-    const bodyOrError = await parseJsonBody(request);
-    if (bodyOrError instanceof Response) {
-      log.emit({ status: 400 });
-      return bodyOrError;
-    }
-    const body = bodyOrError;
+    const body = await readJsonObject(request);
 
     if (!body.embed_html || typeof body.embed_html !== "string") {
-      const error = errors.badRequest(
+      throw errors.badRequest(
         "embed_html",
         "embed_html is required and must be a string"
       );
-      log.emit({ status: error.status });
-      return errorResponse(error);
     }
 
     const sanitizedHtml = DOMPurify.sanitize(body.embed_html, {
@@ -136,12 +117,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ALLOWED_URI_REGEXP: ALLOWED_URI_REGEX,
     });
     if (!sanitizedHtml.trim()) {
-      const error = errors.badRequest(
+      throw errors.badRequest(
         "embed_html",
         "embed_html contained no allowed content after sanitization"
       );
-      log.emit({ status: error.status });
-      return errorResponse(error);
     }
 
     const result = await db
@@ -187,15 +166,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
 export const GET: APIRoute = async ({ request, locals }) => {
   const log = createWorkersLogger(request);
   try {
-    const db = locals.runtime.env.DB;
-
     log.set({ api: { route: "GET /api/tweets" } });
 
-    if (!db) {
-      const error = errors.database("check database connection");
-      log.emit({ status: error.status });
-      return errorResponse(error);
-    }
+    const db = getDbOrThrow(locals);
 
     const result = await db
       .prepare(
@@ -219,54 +192,27 @@ export const GET: APIRoute = async ({ request, locals }) => {
 export const DELETE: APIRoute = async ({ request, locals }) => {
   const log = createWorkersLogger(request);
   try {
-    const db = locals.runtime.env.DB;
-    const adminSecret = locals.runtime.env.ADMIN_SECRET;
-
     log.set({ api: { route: "DELETE /api/tweets" } });
 
-    if (!db) {
-      const error = errors.database("check database connection");
-      log.emit({ status: error.status });
-      return errorResponse(error);
-    }
+    const db = getDbOrThrow(locals);
+    await requireAdmin(request, locals.runtime.env.ADMIN_SECRET);
 
-    const authError = await verifyAdmin(request, adminSecret);
-    if (authError) {
-      log.emit({ status: authError.status });
-      return authError;
-    }
-
-    const bodyOrError = await parseJsonBody(request);
-    if (bodyOrError instanceof Response) {
-      log.emit({ status: 400 });
-      return bodyOrError;
-    }
-    const body = bodyOrError;
-
-    if (!Number.isInteger(body.id) || (body.id as number) < 1) {
-      const error = errors.badRequest(
-        "id",
-        "id is required and must be a positive integer"
-      );
-      log.emit({ status: error.status });
-      return errorResponse(error);
-    }
+    const body = await readJsonObject(request);
+    const id = readPositiveInt(body, "id");
 
     const result = await db
       .prepare("DELETE FROM tweets WHERE id = ?")
-      .bind(body.id)
+      .bind(id)
       .run();
 
     if (result.meta?.changes === 0) {
-      const error = errors.notFound("tweet");
-      log.emit({ status: error.status });
-      return errorResponse(error);
+      throw errors.notFound("tweet");
     }
 
-    log.set({ tweet: { id: body.id } });
+    log.set({ tweet: { id } });
     log.emit({ status: 200 });
 
-    return jsonResponse({ success: true, id: body.id });
+    return jsonResponse({ success: true, id });
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to delete tweet");
     log.error(evlogError);
@@ -278,79 +224,47 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
 export const PATCH: APIRoute = async ({ request, locals }) => {
   const log = createWorkersLogger(request);
   try {
-    const db = locals.runtime.env.DB;
-    const adminSecret = locals.runtime.env.ADMIN_SECRET;
-
     log.set({ api: { route: "PATCH /api/tweets" } });
 
-    if (!db) {
-      const error = errors.database("check database connection");
-      log.emit({ status: error.status });
-      return errorResponse(error);
-    }
+    const db = getDbOrThrow(locals);
+    await requireAdmin(request, locals.runtime.env.ADMIN_SECRET);
 
-    const authError = await verifyAdmin(request, adminSecret);
-    if (authError) {
-      log.emit({ status: authError.status });
-      return authError;
-    }
+    const body = await readJsonObject(request);
+    const movedId = readPositiveInt(body, "movedId");
+    const targetId = readPositiveInt(body, "targetId");
 
-    const bodyOrError = await parseJsonBody(request);
-    if (bodyOrError instanceof Response) {
-      log.emit({ status: 400 });
-      return bodyOrError;
-    }
-    const body = bodyOrError;
-
-    if (
-      !(Number.isInteger(body.movedId) && Number.isInteger(body.targetId)) ||
-      (body.movedId as number) < 1 ||
-      (body.targetId as number) < 1
-    ) {
-      const error = errors.badRequest(
-        "movedId/targetId",
-        "movedId and targetId are required and must be positive integers"
-      );
-      log.emit({ status: error.status });
-      return errorResponse(error);
-    }
-
-    if (body.movedId === body.targetId) {
-      const error = errors.badRequest(
+    if (movedId === targetId) {
+      throw errors.badRequest(
         "movedId/targetId",
         "movedId and targetId must be different"
       );
-      log.emit({ status: error.status });
-      return errorResponse(error);
     }
 
     const [movedTweet, targetTweet] = await Promise.all([
       db
         .prepare("SELECT sort_order FROM tweets WHERE id = ?")
-        .bind(body.movedId)
+        .bind(movedId)
         .first<{ sort_order: number }>(),
       db
         .prepare("SELECT sort_order FROM tweets WHERE id = ?")
-        .bind(body.targetId)
+        .bind(targetId)
         .first<{ sort_order: number }>(),
     ]);
 
     if (!(movedTweet && targetTweet)) {
-      const error = errors.notFound("tweet");
-      log.emit({ status: error.status });
-      return errorResponse(error);
+      throw errors.notFound("tweet");
     }
 
     await db.batch([
       db
         .prepare("UPDATE tweets SET sort_order = ? WHERE id = ?")
-        .bind(targetTweet.sort_order, body.movedId),
+        .bind(targetTweet.sort_order, movedId),
       db
         .prepare("UPDATE tweets SET sort_order = ? WHERE id = ?")
-        .bind(movedTweet.sort_order, body.targetId),
+        .bind(movedTweet.sort_order, targetId),
     ]);
 
-    log.set({ swap: { movedId: body.movedId, targetId: body.targetId } });
+    log.set({ swap: { movedId, targetId } });
     log.emit({ status: 200 });
 
     return jsonResponse({ success: true });
