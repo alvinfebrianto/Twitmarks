@@ -1,0 +1,90 @@
+"use client";
+
+import { X } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
+
+interface AdminPromptDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onUnlock: (secret: string) => void;
+}
+
+export function AdminPromptDialog({
+  isOpen,
+  onClose,
+  onUnlock,
+}: AdminPromptDialogProps) {
+  const [adminInput, setAdminInput] = useState("");
+
+  const handleClose = () => {
+    setAdminInput("");
+    onClose();
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onUnlock(adminInput);
+    setAdminInput("");
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[60] bg-zinc-950/20 backdrop-blur-sm dark:bg-zinc-950/60"
+            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            onClick={handleClose}
+          />
+          <motion.div
+            animate={{ y: 0, opacity: 1 }}
+            aria-labelledby="admin-modal-title"
+            aria-modal={true}
+            className="fixed inset-x-4 top-[20%] z-[70] mx-auto max-w-sm overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+            exit={{ y: 20, opacity: 0 }}
+            initial={{ y: 20, opacity: 0 }}
+            role="dialog"
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          >
+            <div className="flex items-center justify-between border-zinc-100 border-b px-6 py-4 dark:border-zinc-800">
+              <h2
+                className="font-display font-semibold text-lg dark:text-zinc-50"
+                id="admin-modal-title"
+              >
+                Admin Access
+              </h2>
+              <button
+                aria-label="Close"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                onClick={handleClose}
+                type="button"
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </div>
+            <form className="flex flex-col gap-4 p-6" onSubmit={handleSubmit}>
+              <input
+                autoFocus
+                className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                onChange={(e) => setAdminInput(e.target.value)}
+                placeholder="Enter admin secret"
+                type="password"
+                value={adminInput}
+              />
+              <button
+                className="w-full rounded-full bg-zinc-950 px-6 py-3 font-medium text-sm text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200"
+                disabled={!adminInput.trim()}
+                type="submit"
+              >
+                Unlock
+              </button>
+            </form>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}

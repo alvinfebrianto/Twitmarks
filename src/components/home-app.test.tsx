@@ -10,7 +10,8 @@ import {
   it,
   vi,
 } from "vitest";
-import App, { type DbTweet } from "./home-app";
+import type { DbTweet } from "../lib/tweet-helpers";
+import App from "./home-app";
 
 beforeAll(() => {
   cleanup();
