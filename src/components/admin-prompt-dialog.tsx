@@ -2,7 +2,7 @@
 
 import { X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface AdminPromptDialogProps {
   isOpen: boolean;
@@ -16,6 +16,12 @@ export function AdminPromptDialog({
   onUnlock,
 }: AdminPromptDialogProps) {
   const [adminInput, setAdminInput] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) {
+      setAdminInput("");
+    }
+  }, [isOpen]);
 
   const handleClose = () => {
     setAdminInput("");

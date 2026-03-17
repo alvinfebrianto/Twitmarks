@@ -883,6 +883,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   }, []);
 
   useEscapeToClose(isFilterDrawerOpen, () => setIsFilterDrawerOpen(false));
+  useEscapeToClose(isAdminPromptOpen, () => setIsAdminPromptOpen(false));
 
   const filteredTweets = useMemo(
     () => filterTweets(tweets, { searchQuery, dateFilter, sortOption }),
