@@ -291,7 +291,9 @@ describe("GET /api/tweets", () => {
       locals,
     } as never);
 
-    expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, s-maxage=60, max-age=0, must-revalidate"
+    );
   });
 });
 

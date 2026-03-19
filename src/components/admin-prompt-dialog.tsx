@@ -35,7 +35,6 @@ export function AdminPromptDialog({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onUnlock(adminInput);
-    setAdminInput("");
   };
 
   return (
