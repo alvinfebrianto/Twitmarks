@@ -60,4 +60,31 @@ describe("AdminPromptDialog", () => {
 
     expect(screen.getByLabelText("Admin secret")).toHaveValue("");
   });
+
+  it("hides the clear button while submitting", async () => {
+    const onClose = vi.fn();
+    const onUnlock = vi.fn();
+    const { user, rerender } = renderWithUser(
+      <AdminPromptDialog isOpen={true} onClose={onClose} onUnlock={onUnlock} />
+    );
+
+    await user.type(screen.getByLabelText("Admin secret"), "test-secret");
+
+    expect(
+      screen.getByRole("button", { name: "Clear secret" })
+    ).toBeInTheDocument();
+
+    rerender(
+      <AdminPromptDialog
+        isOpen={true}
+        isSubmitting={true}
+        onClose={onClose}
+        onUnlock={onUnlock}
+      />
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Clear secret" })
+    ).not.toBeInTheDocument();
+  });
 });

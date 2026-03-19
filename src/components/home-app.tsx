@@ -822,6 +822,14 @@ export default function App({
 
   const [isAdminPromptOpen, setIsAdminPromptOpen] = useState(false);
 
+  const handleCloseAdminPrompt = useCallback(() => {
+    if (isAdminSubmitting) {
+      return;
+    }
+    setIsAdminPromptOpen(false);
+    setAdminError(null);
+  }, [isAdminSubmitting]);
+
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(
     () => new Set<number>()
@@ -905,7 +913,7 @@ export default function App({
   ]);
 
   useEscapeToClose(isFilterDrawerOpen, () => setIsFilterDrawerOpen(false));
-  useEscapeToClose(isAdminPromptOpen, () => setIsAdminPromptOpen(false));
+  useEscapeToClose(isAdminPromptOpen, handleCloseAdminPrompt);
 
   const filteredTweets = useMemo(
     () => filterTweets(tweets, { searchQuery, dateFilter, sortOption }),
@@ -1377,10 +1385,7 @@ export default function App({
         error={adminError}
         isOpen={isAdminPromptOpen}
         isSubmitting={isAdminSubmitting}
-        onClose={() => {
-          setIsAdminPromptOpen(false);
-          setAdminError(null);
-        }}
+        onClose={handleCloseAdminPrompt}
         onUnlock={async (secret) => {
           setAdminError(null);
           setIsAdminSubmitting(true);

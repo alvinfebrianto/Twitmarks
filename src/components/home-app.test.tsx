@@ -383,3 +383,40 @@ describe("multi-select deletion", () => {
     });
   });
 });
+
+describe("Admin prompt dialog", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("clears admin error when closed via Escape", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: vi.fn().mockResolvedValue({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    await user.click(screen.getByRole("button", { name: "Unlock admin" }));
+    await user.type(screen.getByLabelText("Admin secret"), "bad-secret");
+    await user.click(screen.getByRole("button", { name: "Unlock" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Invalid admin secret.")).toBeInTheDocument();
+    });
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Admin Access" })
+      ).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Unlock admin" }));
+
+    expect(screen.queryByText("Invalid admin secret.")).not.toBeInTheDocument();
+  });
+});

@@ -98,7 +98,7 @@ export function AdminPromptDialog({
                   value={adminInput}
                 />
                 <AnimatePresence>
-                  {adminInput && (
+                  {adminInput && !isSubmitting && (
                     <motion.button
                       animate={{ opacity: 1, scale: 1 }}
                       aria-label="Clear secret"
