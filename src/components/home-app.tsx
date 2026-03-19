@@ -7,7 +7,6 @@ import {
   ArrowUp,
   Check,
   CheckSquare,
-  Image as ImageIcon,
   LockSimple,
   LockSimpleOpen,
   MagnifyingGlass,
@@ -42,7 +41,6 @@ import type { DbTweet, TweetPhoto, UiTweet } from "../lib/tweet-helpers";
 import {
   extractTweetId,
   filterTweets,
-  hasTweetMedia,
   normalizeTweet,
   pruneSelectedIds,
 } from "../lib/tweet-helpers";
@@ -529,16 +527,10 @@ const TweetEmbed = ({
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
-  const [photos, setPhotos] = useState<TweetPhoto[] | null>(null);
   const [nearViewport, setNearViewport] = useState(false);
 
   const tweetId = useMemo(
     () => extractTweetId(tweet.embed_html),
-    [tweet.embed_html]
-  );
-  const hasMedia = useMemo(
-    () => hasTweetMedia(tweet.embed_html),
     [tweet.embed_html]
   );
 
@@ -548,36 +540,6 @@ const TweetEmbed = ({
     error,
     isLoading,
   } = useTweet(undefined, nearViewport ? apiUrl : undefined);
-
-  const handleMediaClick = useCallback(async () => {
-    if (!tweetId || isLoadingMedia) {
-      return;
-    }
-    if (photos !== null) {
-      if (photos.length > 0) {
-        onOpenImageViewer(photos);
-      }
-      return;
-    }
-    setIsLoadingMedia(true);
-    try {
-      const res = await fetch(`/api/media?id=${tweetId}`);
-      if (res.ok) {
-        const data = (await res.json()) as { photos: TweetPhoto[] };
-        const fetched = data.photos ?? [];
-        setPhotos(fetched);
-        if (fetched.length > 0) {
-          onOpenImageViewer(fetched);
-        }
-      } else {
-        setPhotos([]);
-      }
-    } catch {
-      setPhotos([]);
-    } finally {
-      setIsLoadingMedia(false);
-    }
-  }, [tweetId, isLoadingMedia, photos, onOpenImageViewer]);
 
   useEffect(() => {
     if (nearViewport || !cardRef.current) {
@@ -665,33 +627,6 @@ const TweetEmbed = ({
             )}
           </div>
         </label>
-      )}
-
-      {hasMedia && !isSelectionMode && (
-        <button
-          aria-label="View tweet images"
-          className="absolute top-3 left-3 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-zinc-950/50 text-white opacity-0 shadow-sm backdrop-blur-md transition-opacity duration-200 group-hover:opacity-100"
-          onClick={handleMediaClick}
-          type="button"
-        >
-          {isLoadingMedia ? (
-            <motion.div
-              animate={{ rotate: 360 }}
-              className="h-3.5 w-3.5 rounded-full border border-white/40 border-t-white"
-              transition={{
-                duration: 0.8,
-                ease: "linear",
-                repeat: Number.POSITIVE_INFINITY,
-              }}
-            />
-          ) : (
-            <ImageIcon
-              aria-hidden="true"
-              className="h-3.5 w-3.5"
-              weight="bold"
-            />
-          )}
-        </button>
       )}
 
       {isAdmin && !isSelectionMode && (
