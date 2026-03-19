@@ -34,6 +34,8 @@ export function useAdminSession(initialIsAdmin = false) {
   const lockAdmin = useCallback(async () => {
     try {
       await fetch("/api/admin/logout", { method: "POST" });
+    } catch {
+      // Ignore network errors – we log out locally regardless.
     } finally {
       setIsAdmin(false);
     }
