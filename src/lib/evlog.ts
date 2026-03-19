@@ -23,7 +23,7 @@ export const errors = {
       message: "Unauthorized",
       status: 401,
       why: reason ?? "Missing or invalid authentication credentials",
-      fix: "Provide a valid Bearer token in the Authorization header",
+      fix: "Provide valid authentication credentials and try again",
     }),
 
   badRequest: (field: string, issue: string) =>

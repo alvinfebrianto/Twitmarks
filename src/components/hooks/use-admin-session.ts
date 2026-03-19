@@ -2,37 +2,46 @@
 
 import { useCallback, useState } from "react";
 
-export function useAdminSession() {
-  const [adminSecret, setAdminSecret] = useState(() => {
-    try {
-      return sessionStorage.getItem("twitmarks_admin") ?? "";
-    } catch {
-      return "";
-    }
-  });
-  const isAdmin = adminSecret.length > 0;
+export function useAdminSession(initialIsAdmin = false) {
+  const [isAdmin, setIsAdmin] = useState(initialIsAdmin);
 
-  const persistAdminSecret = useCallback((secret: string) => {
+  const unlockAdmin = useCallback(async (secret: string) => {
     const trimmed = secret.trim();
     if (!trimmed) {
       return;
     }
-    try {
-      sessionStorage.setItem("twitmarks_admin", trimmed);
-    } catch {
-      // sessionStorage may be unavailable
+
+    const response = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret: trimmed }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(
+        response.status === 401
+          ? "Invalid admin secret."
+          : ((data as Record<string, string>).why ??
+              (data as Record<string, string>).error ??
+              "Failed to unlock admin.")
+      );
     }
-    setAdminSecret(trimmed);
+
+    setIsAdmin(true);
   }, []);
 
-  const lockAdmin = useCallback(() => {
+  const lockAdmin = useCallback(async () => {
     try {
-      sessionStorage.removeItem("twitmarks_admin");
-    } catch {
-      // sessionStorage may be unavailable
+      await fetch("/api/admin/logout", { method: "POST" });
+    } finally {
+      setIsAdmin(false);
     }
-    setAdminSecret("");
   }, []);
 
-  return { adminSecret, isAdmin, persistAdminSecret, lockAdmin };
+  const expireAdmin = useCallback(() => {
+    setIsAdmin(false);
+  }, []);
+
+  return { isAdmin, unlockAdmin, lockAdmin, expireAdmin };
 }

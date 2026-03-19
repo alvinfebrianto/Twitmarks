@@ -2,8 +2,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { GET } from "./og";
 
-function createRequest(query: string): { url: URL } {
-  return { url: new URL(`http://localhost/api/og${query}`) };
+function createRequest(query: string): { url: URL; request: Request } {
+  const url = new URL(`http://localhost/api/og${query}`);
+  return { url, request: new Request(url) };
+}
+
+function mockRedirectResponse(location: string, status = 302): Response {
+  return new Response(null, { status, headers: { Location: location } });
 }
 
 function mockFetchHtml(html: string) {
@@ -134,6 +139,68 @@ describe("GET /api/og", () => {
       );
       const data = await res.json();
       expect(data.domain).toBe("example.com");
+    });
+  });
+
+  describe("redirect handling (SSRF mitigation)", () => {
+    it("uses redirect: manual in fetch", async () => {
+      mockFetchHtml('<meta property="og:title" content="Test">');
+      const res = await GET(createRequest("?url=https://example.com") as never);
+      expect(res.status).toBe(200);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ redirect: "manual" })
+      );
+    });
+
+    it("follows safe redirects", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          mockRedirectResponse("https://example.com/final")
+        )
+        .mockResolvedValueOnce(
+          new Response('<meta property="og:title" content="Redirected">', {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          })
+        );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = await GET(
+        createRequest("?url=https://example.com/start") as never
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.title).toBe("Redirected");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("blocks redirect to localhost", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(mockRedirectResponse("http://127.0.0.1/admin"));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = await GET(
+        createRequest("?url=https://example.com/start") as never
+      );
+      expect(res.status).toBe(502);
+    });
+
+    it("rejects redirect chains exceeding max hops", async () => {
+      const fetchMock = vi.fn();
+      for (let i = 0; i < 5; i++) {
+        fetchMock.mockResolvedValueOnce(
+          mockRedirectResponse(`https://example.com/hop${String(i + 1)}`)
+        );
+      }
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = await GET(
+        createRequest("?url=https://example.com/start") as never
+      );
+      expect(res.status).toBe(502);
     });
   });
 

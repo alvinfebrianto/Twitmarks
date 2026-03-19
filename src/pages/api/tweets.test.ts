@@ -1,5 +1,8 @@
-// @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
+import {
+  ADMIN_SESSION_COOKIE,
+  createSessionValue,
+} from "../../lib/admin-session";
 import { DELETE, GET, PATCH, POST } from "./tweets";
 
 function createMockDB(
@@ -49,12 +52,20 @@ function createLocals(overrides: { db?: unknown; adminSecret?: string } = {}) {
   } as unknown as App.Locals;
 }
 
-function createRequest(body: Record<string, unknown>, secret = "test-secret") {
+async function createAdminCookie(secret = "test-secret") {
+  const value = await createSessionValue(secret);
+  return `${ADMIN_SESSION_COOKIE}=${value}`;
+}
+
+async function createRequest(
+  body: Record<string, unknown>,
+  secret = "test-secret"
+) {
   return new Request("http://localhost/api/tweets", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${secret}`,
+      Cookie: await createAdminCookie(secret),
     },
     body: JSON.stringify(body),
   });
@@ -64,7 +75,7 @@ describe("POST /api/tweets", () => {
   it("inserts a tweet and returns 201", async () => {
     const db = createMockDB();
     const locals = createLocals({ db });
-    const request = createRequest({
+    const request = await createRequest({
       embed_html: '<blockquote class="twitter-tweet"><p>hello</p></blockquote>',
     });
 
@@ -83,7 +94,7 @@ describe("POST /api/tweets", () => {
     );
   });
 
-  it("returns 401 when no auth header is provided", async () => {
+  it("returns 401 when no session cookie is provided", async () => {
     const locals = createLocals();
     const request = new Request("http://localhost/api/tweets", {
       method: "POST",
@@ -96,25 +107,44 @@ describe("POST /api/tweets", () => {
     expect(response.status).toBe(401);
   });
 
-  it("returns 401 when token is invalid", async () => {
+  it("returns 401 when session cookie is invalid", async () => {
     const locals = createLocals();
-    const request = createRequest(
-      { embed_html: "<blockquote>test</blockquote>" },
-      "wrong-secret"
-    );
+    const request = new Request("http://localhost/api/tweets", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${ADMIN_SESSION_COOKIE}=invalid-value`,
+      },
+      body: JSON.stringify({ embed_html: "<blockquote>test</blockquote>" }),
+    });
 
     const response = await POST({ request, locals } as never);
 
     expect(response.status).toBe(401);
   });
 
+  it("returns 400 when Content-Type is missing", async () => {
+    const locals = createLocals();
+    const cookie = await createAdminCookie();
+    const request = new Request("http://localhost/api/tweets", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ embed_html: "<blockquote>test</blockquote>" }),
+    });
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(400);
+  });
+
   it("returns 400 when request body is not valid JSON", async () => {
     const locals = createLocals();
+    const cookie = await createAdminCookie();
     const request = new Request("http://localhost/api/tweets", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
+        Cookie: cookie,
       },
       body: "not json",
     });
@@ -128,7 +158,7 @@ describe("POST /api/tweets", () => {
 
   it("returns 400 when embed_html is missing", async () => {
     const locals = createLocals();
-    const request = createRequest({});
+    const request = await createRequest({});
 
     const response = await POST({ request, locals } as never);
 
@@ -144,7 +174,7 @@ describe("POST /api/tweets", () => {
       '&mdash; ian (@shaoruu) <a href="https://twitter.com/shaoruu/status/123">Feb 20</a>' +
       "</blockquote>" +
       ' <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>';
-    const request = createRequest({ embed_html: embedHtml });
+    const request = await createRequest({ embed_html: embedHtml });
 
     const response = await POST({ request, locals } as never);
 
@@ -161,7 +191,7 @@ describe("POST /api/tweets", () => {
   it("preserves t.co links in tweet embeds", async () => {
     const db = createMockDB();
     const locals = createLocals({ db });
-    const request = createRequest({
+    const request = await createRequest({
       embed_html:
         '<blockquote class="twitter-tweet"><a href="https://t.co/abc123">pic.twitter.com/abc123</a></blockquote>',
     });
@@ -176,7 +206,7 @@ describe("POST /api/tweets", () => {
   it("returns 400 when sanitized embed_html becomes empty", async () => {
     const db = createMockDB();
     const locals = createLocals({ db });
-    const request = createRequest({
+    const request = await createRequest({
       embed_html: '<script>alert("xss")</script>',
     });
 
@@ -189,7 +219,38 @@ describe("POST /api/tweets", () => {
     );
     expect(db.prepare).not.toHaveBeenCalled();
   });
+
+  it("returns generic 500 when ADMIN_SECRET is not configured", async () => {
+    const db = createMockDB();
+    const locals = {
+      runtime: {
+        env: {
+          DB: db,
+          ADMIN_SECRET: undefined,
+          ASSETS: {},
+        },
+      },
+    } as unknown as App.Locals;
+    const request = new Request("http://localhost/api/tweets", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${ADMIN_SESSION_COOKIE}=some-value`,
+      },
+      body: JSON.stringify({ embed_html: "<blockquote>test</blockquote>" }),
+    });
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(500);
+    const json = await response.json();
+    expect(json.error).not.toContain("ADMIN_SECRET");
+  });
 });
+
+function createGetRequest() {
+  return new Request("http://localhost/api/tweets");
+}
 
 describe("GET /api/tweets", () => {
   it("returns tweets from the database", async () => {
@@ -200,7 +261,10 @@ describe("GET /api/tweets", () => {
     const db = createMockDB(tweets);
     const locals = createLocals({ db });
 
-    const response = await GET({ locals } as never);
+    const response = await GET({
+      request: createGetRequest(),
+      locals,
+    } as never);
 
     expect(response.status).toBe(200);
     const json = await response.json();
@@ -211,11 +275,23 @@ describe("GET /api/tweets", () => {
     const db = createMockDB([]);
     const locals = createLocals({ db });
 
-    await GET({ locals } as never);
+    await GET({ request: createGetRequest(), locals } as never);
 
     expect(db.prepare).toHaveBeenCalledWith(
       "SELECT id, embed_html, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
     );
+  });
+
+  it("includes Cache-Control header", async () => {
+    const db = createMockDB([]);
+    const locals = createLocals({ db });
+
+    const response = await GET({
+      request: createGetRequest(),
+      locals,
+    } as never);
+
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
   });
 });
 
@@ -223,11 +299,12 @@ describe("DELETE /api/tweets", () => {
   it("deletes an existing tweet and returns 200", async () => {
     const db = createMockDB([], { changes: 1 });
     const locals = createLocals({ db });
+    const cookie = await createAdminCookie();
     const request = new Request("http://localhost/api/tweets", {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
+        Cookie: cookie,
       },
       body: JSON.stringify({ id: 1 }),
     });
@@ -240,7 +317,7 @@ describe("DELETE /api/tweets", () => {
     expect(json.id).toBe(1);
   });
 
-  it("returns 401 when auth is missing", async () => {
+  it("returns 401 when session is missing", async () => {
     const locals = createLocals();
     const request = new Request("http://localhost/api/tweets", {
       method: "DELETE",
@@ -255,11 +332,12 @@ describe("DELETE /api/tweets", () => {
 
   it("returns 400 when id is missing", async () => {
     const locals = createLocals();
+    const cookie = await createAdminCookie();
     const request = new Request("http://localhost/api/tweets", {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
+        Cookie: cookie,
       },
       body: JSON.stringify({}),
     });
@@ -272,11 +350,12 @@ describe("DELETE /api/tweets", () => {
   it("returns 404 when tweet does not exist", async () => {
     const db = createMockDB([], { changes: 0 });
     const locals = createLocals({ db });
+    const cookie = await createAdminCookie();
     const request = new Request("http://localhost/api/tweets", {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
+        Cookie: cookie,
       },
       body: JSON.stringify({ id: 999 }),
     });
@@ -293,11 +372,12 @@ describe("PATCH /api/tweets", () => {
       firstResults: [{ sort_order: 1 }, { sort_order: 2 }],
     });
     const locals = createLocals({ db });
+    const cookie = await createAdminCookie();
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
+        Cookie: cookie,
       },
       body: JSON.stringify({ movedId: 1, targetId: 2 }),
     });
@@ -320,7 +400,7 @@ describe("PATCH /api/tweets", () => {
     ]);
   });
 
-  it("returns 401 when auth is missing", async () => {
+  it("returns 401 when session is missing", async () => {
     const locals = createLocals();
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
@@ -335,11 +415,12 @@ describe("PATCH /api/tweets", () => {
 
   it("returns 400 when movedId or targetId is missing", async () => {
     const locals = createLocals();
+    const cookie = await createAdminCookie();
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
+        Cookie: cookie,
       },
       body: JSON.stringify({}),
     });
@@ -351,11 +432,12 @@ describe("PATCH /api/tweets", () => {
 
   it("returns 400 when movedId or targetId is not an integer", async () => {
     const locals = createLocals();
+    const cookie = await createAdminCookie();
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
+        Cookie: cookie,
       },
       body: JSON.stringify({ movedId: 1.5, targetId: 2 }),
     });
@@ -367,11 +449,12 @@ describe("PATCH /api/tweets", () => {
 
   it("returns 400 when movedId and targetId are the same", async () => {
     const locals = createLocals();
+    const cookie = await createAdminCookie();
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
+        Cookie: cookie,
       },
       body: JSON.stringify({ movedId: 1, targetId: 1 }),
     });
@@ -386,11 +469,12 @@ describe("PATCH /api/tweets", () => {
       firstResults: [{ sort_order: 1 }, null],
     });
     const locals = createLocals({ db });
+    const cookie = await createAdminCookie();
     const request = new Request("http://localhost/api/tweets", {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-secret",
+        Cookie: cookie,
       },
       body: JSON.stringify({ movedId: 1, targetId: 999 }),
     });
