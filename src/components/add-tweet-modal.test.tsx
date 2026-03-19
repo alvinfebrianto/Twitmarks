@@ -27,7 +27,6 @@ describe("AddTweetModal", () => {
 
     expect(screen.getByText("Add Tweet Embed")).toBeInTheDocument();
     expect(screen.getByLabelText("Twitter Embed Code")).toBeInTheDocument();
-    expect(screen.getByLabelText("Admin Secret")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Add Tweet" })
     ).toBeInTheDocument();
@@ -52,17 +51,15 @@ describe("AddTweetModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onSubmit with embed HTML and admin secret when form is submitted", async () => {
+  it("calls onSubmit with embed HTML when form is submitted", async () => {
     const onSubmit = vi.fn();
     const { user } = renderWithUser(
       <AddTweetModal isOpen={true} onClose={vi.fn()} onSubmit={onSubmit} />
     );
 
-    const secretInput = screen.getByLabelText("Admin Secret");
     const textarea = screen.getByLabelText("Twitter Embed Code");
     const submitButton = screen.getByRole("button", { name: "Add Tweet" });
 
-    await user.type(secretInput, "my-secret");
     await user.type(
       textarea,
       '<blockquote class="twitter-tweet">...</blockquote>'
@@ -70,8 +67,7 @@ describe("AddTweetModal", () => {
     await user.click(submitButton);
 
     expect(onSubmit).toHaveBeenCalledWith(
-      '<blockquote class="twitter-tweet">...</blockquote>',
-      "my-secret"
+      '<blockquote class="twitter-tweet">...</blockquote>'
     );
   });
 
@@ -83,7 +79,6 @@ describe("AddTweetModal", () => {
       <AddTweetModal isOpen={true} onClose={vi.fn()} onSubmit={onSubmit} />
     );
 
-    await user.type(screen.getByLabelText("Admin Secret"), "secret");
     await user.type(screen.getByLabelText("Twitter Embed Code"), "test embed");
     await user.click(screen.getByRole("button", { name: "Add Tweet" }));
 
@@ -113,68 +108,18 @@ describe("AddTweetModal", () => {
     expect(submitButton).toBeDisabled();
   });
 
-  it("pre-fills admin secret from initialSecret when modal opens", () => {
-    render(
-      <AddTweetModal
-        initialSecret="saved-secret"
-        isOpen={true}
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-      />
-    );
-
-    expect(screen.getByLabelText("Admin Secret")).toHaveValue("saved-secret");
-  });
-
-  it("re-fills admin secret when modal reopens with initialSecret", async () => {
-    const onClose = vi.fn();
-    const { user, rerender } = renderWithUser(
-      <AddTweetModal
-        initialSecret="saved-secret"
-        isOpen={true}
-        onClose={onClose}
-        onSubmit={vi.fn()}
-      />
-    );
-
-    await user.click(screen.getByLabelText("Close modal"));
-
-    rerender(
-      <AddTweetModal
-        initialSecret="saved-secret"
-        isOpen={false}
-        onClose={onClose}
-        onSubmit={vi.fn()}
-      />
-    );
-
-    rerender(
-      <AddTweetModal
-        initialSecret="saved-secret"
-        isOpen={true}
-        onClose={onClose}
-        onSubmit={vi.fn()}
-      />
-    );
-
-    expect(screen.getByLabelText("Admin Secret")).toHaveValue("saved-secret");
-  });
-
   it("preserves form values when submission fails", async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error("Unauthorized"));
     const { user } = renderWithUser(
       <AddTweetModal isOpen={true} onClose={vi.fn()} onSubmit={onSubmit} />
     );
 
-    const secretInput = screen.getByLabelText("Admin Secret");
     const textarea = screen.getByLabelText("Twitter Embed Code");
 
-    await user.type(secretInput, "wrong-secret");
     await user.type(textarea, "<blockquote>tweet</blockquote>");
     await user.click(screen.getByRole("button", { name: "Add Tweet" }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(secretInput).toHaveValue("wrong-secret");
     expect(textarea).toHaveValue("<blockquote>tweet</blockquote>");
   });
 });

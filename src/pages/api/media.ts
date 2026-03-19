@@ -35,6 +35,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   try {
     const res = await fetch(apiUrl, {
       headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!res.ok) {

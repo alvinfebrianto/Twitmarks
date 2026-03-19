@@ -50,7 +50,10 @@ export const GET: APIRoute = async ({ params, request }) => {
   url.searchParams.set("token", getToken(id));
 
   try {
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5000),
+    });
     const isJson = res.headers
       .get("content-type")
       ?.includes("application/json");

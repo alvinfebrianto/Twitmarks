@@ -2,51 +2,35 @@
 
 import { X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "../lib/utils";
 
 interface AddTweetModalProps {
   error?: string | null;
-  initialSecret?: string;
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (embedHtml: string, adminSecret: string) => Promise<void> | void;
+  onSubmit: (embedHtml: string) => Promise<void> | void;
 }
 
 export function AddTweetModal({
   error,
-  initialSecret,
   isOpen,
   onClose,
   onSubmit,
 }: AddTweetModalProps) {
   const [embedHtml, setEmbedHtml] = useState("");
-  const [adminSecret, setAdminSecret] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (isOpen && initialSecret) {
-      setAdminSecret(initialSecret);
-    }
-  }, [isOpen, initialSecret]);
-
-  const errorForEmbedHtml = error?.toLowerCase().includes("embed_html");
-  const errorForAuth =
-    error?.toLowerCase().includes("unauthorized") ||
-    error?.toLowerCase().includes("token") ||
-    error?.toLowerCase().includes("auth");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!(embedHtml.trim() && adminSecret.trim()) || isSubmitting) {
+    if (!embedHtml.trim() || isSubmitting) {
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await onSubmit(embedHtml.trim(), adminSecret.trim());
+      await onSubmit(embedHtml.trim());
       setEmbedHtml("");
-      setAdminSecret("");
     } catch {
       // The parent surfaces submission errors; keep the current values for retry.
     } finally {
@@ -59,7 +43,6 @@ export function AddTweetModal({
       return;
     }
     setEmbedHtml("");
-    setAdminSecret("");
     onClose();
   };
 
@@ -115,53 +98,6 @@ export function AddTweetModal({
               <div className="flex flex-col gap-2">
                 <label
                   className="font-medium text-sm text-zinc-700 dark:text-zinc-300"
-                  htmlFor="admin-secret"
-                >
-                  Admin Secret
-                </label>
-                <div className="relative">
-                  <input
-                    className={cn(
-                      "w-full rounded-2xl border bg-white py-3 pr-12 pl-4 text-sm transition-all",
-                      "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
-                      "dark:bg-zinc-900 dark:text-zinc-100",
-                      (error && errorForAuth) || (error && !errorForEmbedHtml)
-                        ? "border-red-300 dark:border-red-700"
-                        : "border-zinc-200 dark:border-zinc-800"
-                    )}
-                    disabled={isSubmitting}
-                    id="admin-secret"
-                    onChange={(e) => setAdminSecret(e.target.value)}
-                    placeholder="Enter admin secret"
-                    required
-                    type="password"
-                    value={adminSecret}
-                  />
-                  <AnimatePresence>
-                    {adminSecret && !isSubmitting && (
-                      <motion.button
-                        animate={{ opacity: 1, scale: 1 }}
-                        aria-label="Clear secret"
-                        className="absolute inset-y-0 right-4 flex items-center text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-200"
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        onClick={() => setAdminSecret("")}
-                        type="button"
-                      >
-                        <X
-                          aria-hidden="true"
-                          className="h-4 w-4"
-                          weight="bold"
-                        />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label
-                  className="font-medium text-sm text-zinc-700 dark:text-zinc-300"
                   htmlFor="embed-html"
                 >
                   Twitter Embed Code
@@ -173,7 +109,7 @@ export function AddTweetModal({
                       "min-h-[160px] w-full rounded-2xl border bg-white py-4 pr-12 pl-4 font-mono text-sm transition-all",
                       "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
                       "dark:bg-zinc-900 dark:text-zinc-100",
-                      (error && errorForEmbedHtml) || (error && !errorForAuth)
+                      error
                         ? "border-red-300 dark:border-red-700"
                         : "border-zinc-200 dark:border-zinc-800"
                     )}
@@ -226,9 +162,7 @@ export function AddTweetModal({
                       ? "cursor-not-allowed bg-zinc-400 text-white"
                       : "bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200"
                   )}
-                  disabled={
-                    isSubmitting || !embedHtml.trim() || !adminSecret.trim()
-                  }
+                  disabled={isSubmitting || !embedHtml.trim()}
                   type="submit"
                 >
                   {isSubmitting ? (

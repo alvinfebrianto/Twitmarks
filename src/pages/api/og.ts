@@ -30,10 +30,10 @@ function extractMeta(html: string, attr: string, value: string): string | null {
   return null;
 }
 
-function parseTarget(input: string): URL | null {
+function parseTarget(input: string, base?: URL): URL | null {
   let u: URL;
   try {
-    u = new URL(input);
+    u = base ? new URL(input, base) : new URL(input);
   } catch {
     return null;
   }
@@ -74,6 +74,49 @@ function parseHttpUrl(input: string, base?: URL): URL | null {
   return u;
 }
 
+const MAX_REDIRECT_HOPS = 3;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+async function fetchWithValidatedRedirects(initialUrl: URL): Promise<{
+  response: Response;
+  finalUrl: URL;
+}> {
+  let currentUrl = initialUrl;
+
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    const response = await fetch(currentUrl, {
+      headers: {
+        "User-Agent": "Twitterbot/1.0",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!REDIRECT_STATUSES.has(response.status)) {
+      return { response, finalUrl: currentUrl };
+    }
+
+    if (hop === MAX_REDIRECT_HOPS) {
+      throw new Error("Too many redirects");
+    }
+
+    const location = response.headers.get("Location");
+    if (!location) {
+      throw new Error("Redirect missing Location header");
+    }
+
+    const nextUrl = parseTarget(location, currentUrl);
+    if (!nextUrl) {
+      throw new Error("Redirect target failed validation");
+    }
+
+    currentUrl = nextUrl;
+  }
+
+  throw new Error("Too many redirects");
+}
+
 function decodeHtmlEntities(str: string): string {
   return str
     .replace(/&amp;/g, "&")
@@ -98,13 +141,8 @@ export const GET: APIRoute = async ({ url, request }) => {
   log.set({ og: { domain: targetUrl.hostname.replace(WWW_RE, "") } });
 
   try {
-    const res = await fetch(targetUrl, {
-      headers: {
-        "User-Agent": "Twitterbot/1.0",
-        Accept: "text/html,application/xhtml+xml",
-      },
-      signal: AbortSignal.timeout(5000),
-    });
+    const { response: res, finalUrl } =
+      await fetchWithValidatedRedirects(targetUrl);
 
     if (!res.ok) {
       log.set({ og: { fetchStatus: res.status, success: false } });
@@ -138,13 +176,13 @@ export const GET: APIRoute = async ({ url, request }) => {
 
     const imageInput = og("image") ?? tw("image");
     const image = imageInput
-      ? (parseHttpUrl(imageInput, targetUrl)?.toString() ?? null)
+      ? (parseHttpUrl(imageInput, finalUrl)?.toString() ?? null)
       : null;
     const title = og("title") ?? tw("title");
     const description =
       og("description") ?? tw("description") ?? meta("description");
 
-    const domain = targetUrl.hostname.replace(WWW_RE, "");
+    const domain = finalUrl.hostname.replace(WWW_RE, "");
 
     log.set({ og: { domain, hasImage: !!image, hasTitle: !!title } });
     log.emit({ status: 200 });

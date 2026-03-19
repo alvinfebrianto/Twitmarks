@@ -788,7 +788,13 @@ const TweetEmbed = ({
   );
 };
 
-export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
+export default function App({
+  initialTweets,
+  initialIsAdmin = false,
+}: {
+  initialTweets?: DbTweet[];
+  initialIsAdmin?: boolean;
+}) {
   const needsClientLoad = initialTweets == null;
   const [tweets, setTweets] = useState<UiTweet[]>(() =>
     (initialTweets ?? []).map(normalizeTweet)
@@ -809,10 +815,20 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       document.documentElement.classList.contains("dark")
   );
 
-  const { adminSecret, isAdmin, persistAdminSecret, lockAdmin } =
-    useAdminSession();
+  const { isAdmin, unlockAdmin, lockAdmin, expireAdmin } =
+    useAdminSession(initialIsAdmin);
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [isAdminSubmitting, setIsAdminSubmitting] = useState(false);
 
   const [isAdminPromptOpen, setIsAdminPromptOpen] = useState(false);
+
+  const handleCloseAdminPrompt = useCallback(() => {
+    if (isAdminSubmitting) {
+      return;
+    }
+    setIsAdminPromptOpen(false);
+    setAdminError(null);
+  }, [isAdminSubmitting]);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(
@@ -897,7 +913,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
   ]);
 
   useEscapeToClose(isFilterDrawerOpen, () => setIsFilterDrawerOpen(false));
-  useEscapeToClose(isAdminPromptOpen, () => setIsAdminPromptOpen(false));
+  useEscapeToClose(isAdminPromptOpen, handleCloseAdminPrompt);
 
   const filteredTweets = useMemo(
     () => filterTweets(tweets, { searchQuery, dateFilter, sortOption }),
@@ -940,17 +956,14 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       try {
         const res = await fetch("/api/tweets", {
           method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminSecret}`,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: tweetId }),
         });
 
         if (!res.ok) {
           setTweets(snapshot);
           if (res.status === 401) {
-            lockAdmin();
+            expireAdmin();
             setMutationError("Admin session expired. Please unlock again.");
           } else {
             setMutationError("Failed to delete tweet. Please try again.");
@@ -963,7 +976,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
         isMutatingRef.current = false;
       }
     },
-    [tweets, adminSecret, lockAdmin]
+    [tweets, expireAdmin]
   );
 
   const handleReorder = useCallback(
@@ -994,10 +1007,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       try {
         const res = await fetch("/api/tweets", {
           method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminSecret}`,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             movedId: tweetId,
             targetId,
@@ -1007,7 +1017,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
         if (!res.ok) {
           setTweets(snapshot);
           if (res.status === 401) {
-            lockAdmin();
+            expireAdmin();
             setMutationError("Admin session expired. Please unlock again.");
           } else {
             setMutationError("Failed to reorder. Please try again.");
@@ -1020,7 +1030,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
         isMutatingRef.current = false;
       }
     },
-    [tweets, adminSecret, lockAdmin]
+    [tweets, expireAdmin]
   );
 
   const isMutatingRef = useRef(false);
@@ -1053,10 +1063,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
           batch.map((id) =>
             fetch("/api/tweets", {
               method: "DELETE",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${adminSecret}`,
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ id }),
             })
           )
@@ -1081,7 +1088,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
         [...prev, ...failedTweets].sort((a, b) => a.sort_order - b.sort_order)
       );
       if (hadUnauthorized) {
-        lockAdmin();
+        expireAdmin();
         const nonAuthCount = failed.filter(
           ({ r }) => !(r.status === "fulfilled" && r.value.status === 401)
         ).length;
@@ -1099,7 +1106,7 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       isMutatingRef.current = false;
       isBulkDeletingRef.current = false;
     }
-  }, [selectedIds, tweets, adminSecret, lockAdmin]);
+  }, [selectedIds, tweets, expireAdmin]);
 
   const toggleSelectionMode = useCallback(() => {
     if (selectionMode) {
@@ -1375,44 +1382,58 @@ export default function App({ initialTweets }: { initialTweets?: DbTweet[] }) {
       />
 
       <AdminPromptDialog
+        error={adminError}
         isOpen={isAdminPromptOpen}
-        onClose={() => setIsAdminPromptOpen(false)}
-        onUnlock={(secret) => {
-          persistAdminSecret(secret);
-          setIsAdminPromptOpen(false);
+        isSubmitting={isAdminSubmitting}
+        onClose={handleCloseAdminPrompt}
+        onUnlock={async (secret) => {
+          setAdminError(null);
+          setIsAdminSubmitting(true);
+          try {
+            await unlockAdmin(secret);
+            setIsAdminPromptOpen(false);
+          } catch (error) {
+            setAdminError(
+              error instanceof Error ? error.message : "Failed to unlock admin."
+            );
+          } finally {
+            setIsAdminSubmitting(false);
+          }
         }}
       />
 
       <AddTweetModal
         error={addError}
-        initialSecret={adminSecret}
         isOpen={isAddModalOpen}
         onClose={() => {
           setIsAddModalOpen(false);
           setAddError(null);
         }}
-        onSubmit={async (embedHtml, embedAdminSecret) => {
+        onSubmit={async (embedHtml) => {
           setAddError(null);
           try {
             const response = await fetch("/api/tweets", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${embedAdminSecret}`,
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ embed_html: embedHtml }),
             });
+
+            if (response.status === 401) {
+              expireAdmin();
+              setIsAddModalOpen(false);
+              setMutationError("Admin session expired. Please unlock again.");
+              return;
+            }
 
             if (!response.ok) {
               const data = await response.json().catch(() => ({}));
               throw new Error(
-                data.why ??
-                  data.error ??
+                (data as Record<string, string>).why ??
+                  (data as Record<string, string>).error ??
                   `Failed to add tweet: ${response.status}`
               );
             }
 
-            persistAdminSecret(embedAdminSecret);
             setIsAddModalOpen(false);
             await loadTweets();
           } catch (error) {

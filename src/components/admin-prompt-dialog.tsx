@@ -5,13 +5,17 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 
 interface AdminPromptDialogProps {
+  error?: string | null;
   isOpen: boolean;
+  isSubmitting?: boolean;
   onClose: () => void;
-  onUnlock: (secret: string) => void;
+  onUnlock: (secret: string) => Promise<void> | void;
 }
 
 export function AdminPromptDialog({
+  error,
   isOpen,
+  isSubmitting,
   onClose,
   onUnlock,
 }: AdminPromptDialogProps) {
@@ -24,6 +28,9 @@ export function AdminPromptDialog({
   }, [isOpen]);
 
   const handleClose = () => {
+    if (isSubmitting) {
+      return;
+    }
     setAdminInput("");
     onClose();
   };
@@ -31,7 +38,6 @@ export function AdminPromptDialog({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onUnlock(adminInput);
-    setAdminInput("");
   };
 
   return (
@@ -72,6 +78,11 @@ export function AdminPromptDialog({
               </button>
             </div>
             <form className="flex flex-col gap-4 p-6" onSubmit={handleSubmit}>
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800 text-sm dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200">
+                  {error}
+                </div>
+              )}
               <div className="relative">
                 <label className="sr-only" htmlFor="admin-secret-input">
                   Admin secret
@@ -79,6 +90,7 @@ export function AdminPromptDialog({
                 <input
                   autoFocus
                   className="w-full rounded-2xl border border-zinc-200 bg-white py-3 pr-12 pl-4 text-sm transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                  disabled={isSubmitting}
                   id="admin-secret-input"
                   onChange={(e) => setAdminInput(e.target.value)}
                   placeholder="Enter admin secret"
@@ -86,7 +98,7 @@ export function AdminPromptDialog({
                   value={adminInput}
                 />
                 <AnimatePresence>
-                  {adminInput && (
+                  {adminInput && !isSubmitting && (
                     <motion.button
                       animate={{ opacity: 1, scale: 1 }}
                       aria-label="Clear secret"
@@ -103,10 +115,10 @@ export function AdminPromptDialog({
               </div>
               <button
                 className="w-full rounded-full bg-zinc-950 px-6 py-3 font-medium text-sm text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200"
-                disabled={!adminInput.trim()}
+                disabled={!adminInput.trim() || isSubmitting}
                 type="submit"
               >
-                Unlock
+                {isSubmitting ? "Unlocking..." : "Unlock"}
               </button>
             </form>
           </motion.div>
