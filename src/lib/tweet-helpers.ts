@@ -17,7 +17,6 @@ export interface TweetPhoto {
 }
 
 const TWEET_ID_RE = /(?:twitter|x)\.com\/\w+\/status\/(\d+)/;
-const TWEET_MEDIA_RE = /pic\.(twitter|x)\.com/;
 
 function extractTextContent(html: string): string {
   if (typeof DOMParser === "undefined") {
@@ -38,10 +37,6 @@ export function normalizeTweet(tweet: DbTweet): UiTweet {
 export function extractTweetId(html: string): string | null {
   const match = html.match(TWEET_ID_RE);
   return match?.[1] ?? null;
-}
-
-export function hasTweetMedia(html: string): boolean {
-  return TWEET_MEDIA_RE.test(html);
 }
 
 export function pruneSelectedIds(
