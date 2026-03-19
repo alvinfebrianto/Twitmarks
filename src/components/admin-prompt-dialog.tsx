@@ -28,6 +28,9 @@ export function AdminPromptDialog({
   }, [isOpen]);
 
   const handleClose = () => {
+    if (isSubmitting) {
+      return;
+    }
     setAdminInput("");
     onClose();
   };
