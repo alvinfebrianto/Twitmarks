@@ -257,4 +257,61 @@ describe("enrichNoteTweet", () => {
       "https://t.co/abc123"
     );
   });
+
+  it("maps duplicate entities to successive occurrences", async () => {
+    const fullText = "Hey @alice and @alice again #go #go";
+    mockFxTwitter(fullText);
+
+    const tweet = makeTweet({
+      text: "Short @alice @alice…",
+      note_tweet: { id: "abc" },
+      entities: {
+        hashtags: [
+          { indices: [15, 18], text: "go" },
+          { indices: [19, 22], text: "go" },
+        ],
+        urls: [],
+        user_mentions: [
+          {
+            id_str: "100",
+            indices: [6, 12],
+            name: "Alice",
+            screen_name: "alice",
+          },
+          {
+            id_str: "100",
+            indices: [13, 19],
+            name: "Alice",
+            screen_name: "alice",
+          },
+        ],
+        symbols: [],
+      },
+    });
+
+    const result = await enrichNoteTweet(tweet);
+    const chars = Array.from(fullText);
+
+    expect(result.entities.user_mentions).toHaveLength(2);
+    expect(
+      chars.slice(...result.entities.user_mentions[0].indices).join("")
+    ).toBe("@alice");
+    expect(
+      chars.slice(...result.entities.user_mentions[1].indices).join("")
+    ).toBe("@alice");
+    expect(result.entities.user_mentions[0].indices[0]).toBeLessThan(
+      result.entities.user_mentions[1].indices[0]
+    );
+
+    expect(result.entities.hashtags).toHaveLength(2);
+    expect(chars.slice(...result.entities.hashtags[0].indices).join("")).toBe(
+      "#go"
+    );
+    expect(chars.slice(...result.entities.hashtags[1].indices).join("")).toBe(
+      "#go"
+    );
+    expect(result.entities.hashtags[0].indices[0]).toBeLessThan(
+      result.entities.hashtags[1].indices[0]
+    );
+  });
 });

@@ -44,43 +44,79 @@ function remapEntities(
   entities: Tweet["entities"],
   textChars: string[]
 ): Tweet["entities"] {
+  let hashtagOffset = 0;
+  let urlOffset = 0;
+  let mentionOffset = 0;
+  let symbolOffset = 0;
+  let mediaOffset = 0;
+
   return {
-    hashtags: entities.hashtags.flatMap((e) => {
-      const indices = findRange(textChars, `#${e.text}`, 0);
-      return indices ? [{ ...e, indices }] : [];
-    }),
-    urls: entities.urls.flatMap((e) => {
-      const candidates = [e.url, e.expanded_url, e.display_url].filter(Boolean);
-      for (const candidate of candidates) {
-        const indices = findRange(textChars, candidate, 0);
+    hashtags: [...entities.hashtags]
+      .sort((a, b) => a.indices[0] - b.indices[0])
+      .flatMap((e) => {
+        const indices = findRange(textChars, `#${e.text}`, hashtagOffset);
         if (indices) {
+          hashtagOffset = indices[1];
           return [{ ...e, indices }];
         }
-      }
-      return [];
-    }),
-    user_mentions: entities.user_mentions.flatMap((e) => {
-      const indices = findRange(textChars, `@${e.screen_name}`, 0);
-      return indices ? [{ ...e, indices }] : [];
-    }),
-    symbols: entities.symbols.flatMap((e) => {
-      const indices = findRange(textChars, `$${e.text}`, 0);
-      return indices ? [{ ...e, indices }] : [];
-    }),
+        return [];
+      }),
+    urls: [...entities.urls]
+      .sort((a, b) => a.indices[0] - b.indices[0])
+      .flatMap((e) => {
+        const candidates = [e.url, e.expanded_url, e.display_url].filter(
+          Boolean
+        );
+        for (const candidate of candidates) {
+          const indices = findRange(textChars, candidate, urlOffset);
+          if (indices) {
+            urlOffset = indices[1];
+            return [{ ...e, indices }];
+          }
+        }
+        return [];
+      }),
+    user_mentions: [...entities.user_mentions]
+      .sort((a, b) => a.indices[0] - b.indices[0])
+      .flatMap((e) => {
+        const indices = findRange(
+          textChars,
+          `@${e.screen_name}`,
+          mentionOffset
+        );
+        if (indices) {
+          mentionOffset = indices[1];
+          return [{ ...e, indices }];
+        }
+        return [];
+      }),
+    symbols: [...entities.symbols]
+      .sort((a, b) => a.indices[0] - b.indices[0])
+      .flatMap((e) => {
+        const indices = findRange(textChars, `$${e.text}`, symbolOffset);
+        if (indices) {
+          symbolOffset = indices[1];
+          return [{ ...e, indices }];
+        }
+        return [];
+      }),
     ...(entities.media
       ? {
-          media: entities.media.flatMap((e) => {
-            const candidates = [e.url, e.expanded_url, e.display_url].filter(
-              Boolean
-            );
-            for (const candidate of candidates) {
-              const indices = findRange(textChars, candidate, 0);
-              if (indices) {
-                return [{ ...e, indices }];
+          media: [...entities.media]
+            .sort((a, b) => a.indices[0] - b.indices[0])
+            .flatMap((e) => {
+              const candidates = [e.url, e.expanded_url, e.display_url].filter(
+                Boolean
+              );
+              for (const candidate of candidates) {
+                const indices = findRange(textChars, candidate, mediaOffset);
+                if (indices) {
+                  mediaOffset = indices[1];
+                  return [{ ...e, indices }];
+                }
               }
-            }
-            return [];
-          }),
+              return [];
+            }),
         }
       : {}),
   };
