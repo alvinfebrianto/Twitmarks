@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
 import { ensureEvlogError } from "../../../lib/evlog";
+import { enrichNoteTweet } from "../../../lib/note-tweet";
 
 export const prerender = false;
 
@@ -73,10 +74,12 @@ export const GET: APIRoute = async ({ params, request }) => {
       return Response.json({ data: null }, { status: 404 });
     }
 
-    log.set({ tweet: { found: true } });
+    const enriched = await enrichNoteTweet(data);
+
+    log.set({ tweet: { found: true, noteTweetEnriched: enriched !== data } });
     log.emit({ status: 200 });
 
-    return new Response(JSON.stringify({ data }), {
+    return new Response(JSON.stringify({ data: enriched }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
