@@ -22,5 +22,5 @@ Describe how you validated this PR.
 
 ### Checks run
 
-- [ ] `npm.cmd run gates`
+- [ ] `npm.cmd run lint:fix`
 - [ ] Relevant tests added or updated
