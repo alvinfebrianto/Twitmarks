@@ -23,7 +23,6 @@ import {
   enrichTweet,
   getMediaUrl,
   QuotedTweet,
-  TweetActions,
   TweetBody,
   TweetContainer,
   TweetHeader,
@@ -31,7 +30,6 @@ import {
   TweetInReplyTo,
   TweetMedia,
   TweetNotFound,
-  TweetReplies,
   TweetSkeleton,
   useTweet,
 } from "react-tweet";
@@ -430,7 +428,7 @@ const CustomTweetMedia = ({
   );
 };
 
-const CustomEmbeddedTweet = ({
+export const CustomEmbeddedTweet = ({
   tweet: t,
   onImageClick,
 }: {
@@ -488,8 +486,6 @@ const CustomEmbeddedTweet = ({
       {renderMedia()}
       {tweet.quoted_tweet && <QuotedTweet tweet={tweet.quoted_tweet} />}
       <TweetInfo tweet={tweet} />
-      <TweetActions tweet={tweet} />
-      <TweetReplies tweet={tweet} />
     </TweetContainer>
   );
 };
