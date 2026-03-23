@@ -2,7 +2,9 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
     "@astrojs/cloudflare": "^12.6.12",
+    "@astrojs/react": "^5.0.1",
     "@biomejs/biome": "^2.4.0",
+    "@tailwindcss/vite": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -10,6 +12,7 @@
     "agentation": "^2.2.1",
     "astro": "^5.18.0",
     "jsdom": "^28.1.0",
+    "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "ultracite": "^7.2.4",
     "vitest": "^4.0.18",
@@ -27,17 +30,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@astrojs/react": "^4.4.2",
     "@phosphor-icons/react": "^2.1.10",
-    "@tailwindcss/vite": "^4.2.1",
-    "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
     "evlog": "^2.1.0",
     "isomorphic-dompurify": "^3.0.0",
     "motion": "^12.34.3",
     "react": "^19.2.4",
-    "react-tweet": "^3.3.0",
-    "tailwind-merge": "^3.5.0",
-    "tailwindcss": "^4.2.1"
+    "react-tweet": "^3.3.0"
   }
 }
