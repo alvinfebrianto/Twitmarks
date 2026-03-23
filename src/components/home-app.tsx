@@ -1,22 +1,6 @@
 "use client";
 
-import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
-  Check,
-  CheckSquare,
-  LockSimple,
-  LockSimpleOpen,
-  MagnifyingGlass,
-  Plus,
-  Trash,
-  TwitterLogo,
-  X,
-} from "@phosphor-icons/react";
 import { Agentation } from "agentation";
-
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -34,6 +18,21 @@ import {
   useTweet,
 } from "react-tweet";
 import type { MediaDetails, Tweet } from "react-tweet/api";
+import {
+  ArrowDownIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ArrowUpIcon,
+  CheckIcon,
+  CheckSquareIcon,
+  LockSimpleIcon,
+  LockSimpleOpenIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+  TrashIcon,
+  TwitterLogoIcon,
+  XIcon,
+} from "./icons";
 import "react-tweet/theme.css";
 import type { DbTweet, TweetPhoto, UiTweet } from "../lib/tweet-helpers";
 import {
@@ -127,11 +126,7 @@ const ImageViewerModal = ({
                 onClick={() => setCurrent((p) => Math.max(0, p - 1))}
                 type="button"
               >
-                <ArrowLeft
-                  aria-hidden="true"
-                  className="h-3.5 w-3.5"
-                  weight="bold"
-                />
+                <ArrowLeftIcon aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
               <span className="font-medium text-sm text-white/60 tabular-nums">
                 {current + 1} / {photos.length}
@@ -145,11 +140,7 @@ const ImageViewerModal = ({
                 }
                 type="button"
               >
-                <ArrowRight
-                  aria-hidden="true"
-                  className="h-3.5 w-3.5"
-                  weight="bold"
-                />
+                <ArrowRightIcon aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
@@ -163,7 +154,7 @@ const ImageViewerModal = ({
           }}
           type="button"
         >
-          <X aria-hidden="true" className="h-4 w-4" weight="bold" />
+          <XIcon aria-hidden="true" className="h-4 w-4" weight="bold" />
         </button>
       </motion.div>
     </>
@@ -618,9 +609,7 @@ const TweetEmbed = ({
                 : "border-zinc-300 bg-white/90 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-800/90"
             )}
           >
-            {isSelected && (
-              <Check aria-hidden="true" className="h-3 w-3" weight="bold" />
-            )}
+            {isSelected && <CheckIcon aria-hidden="true" className="h-3 w-3" />}
           </div>
         </label>
       )}
@@ -675,7 +664,7 @@ const TweetEmbed = ({
                     onClick={() => onMoveUp(tweet.id)}
                     type="button"
                   >
-                    <ArrowUp
+                    <ArrowUpIcon
                       aria-hidden="true"
                       className="h-3.5 w-3.5"
                       weight="bold"
@@ -691,11 +680,7 @@ const TweetEmbed = ({
                     onClick={() => onMoveDown(tweet.id)}
                     type="button"
                   >
-                    <ArrowDown
-                      aria-hidden="true"
-                      className="h-3.5 w-3.5"
-                      weight="bold"
-                    />
+                    <ArrowDownIcon aria-hidden="true" className="h-3.5 w-3.5" />
                   </button>
                 </>
               )}
@@ -705,11 +690,7 @@ const TweetEmbed = ({
                 onClick={() => setConfirmingDelete(true)}
                 type="button"
               >
-                <Trash
-                  aria-hidden="true"
-                  className="h-3.5 w-3.5"
-                  weight="bold"
-                />
+                <TrashIcon aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
             </motion.div>
           )}
@@ -1055,10 +1036,9 @@ export default function App({
         <div className="mx-auto flex max-w-[1400px] items-center justify-between">
           <div className="glass-panel pointer-events-auto flex items-center gap-2.5 rounded-full py-2 pr-2.5 pl-2.5 md:pr-3.5">
             <div className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-zinc-950 dark:bg-zinc-100">
-              <TwitterLogo
+              <TwitterLogoIcon
                 aria-hidden="true"
                 className="h-3.5 w-3.5 text-white dark:text-zinc-950"
-                weight="fill"
               />
             </div>
             <span className="hidden font-bold font-display text-base tracking-tight md:block dark:text-zinc-50">
@@ -1087,17 +1067,9 @@ export default function App({
               type="button"
             >
               {isAdmin ? (
-                <LockSimpleOpen
-                  aria-hidden="true"
-                  className="h-4 w-4"
-                  weight="bold"
-                />
+                <LockSimpleOpenIcon aria-hidden="true" className="h-4 w-4" />
               ) : (
-                <LockSimple
-                  aria-hidden="true"
-                  className="h-4 w-4"
-                  weight="bold"
-                />
+                <LockSimpleIcon aria-hidden="true" className="h-4 w-4" />
               )}
             </MagneticButton>
 
@@ -1115,11 +1087,7 @@ export default function App({
                 onClick={toggleSelectionMode}
                 type="button"
               >
-                <CheckSquare
-                  aria-hidden="true"
-                  className="h-4 w-4"
-                  weight="bold"
-                />
+                <CheckSquareIcon aria-hidden="true" className="h-4 w-4" />
               </MagneticButton>
             )}
 
@@ -1129,7 +1097,7 @@ export default function App({
               onClick={() => setIsFilterDrawerOpen(true)}
               type="button"
             >
-              <MagnifyingGlass
+              <MagnifyingGlassIcon
                 aria-hidden="true"
                 className="h-4 w-4"
                 weight="bold"
@@ -1142,7 +1110,7 @@ export default function App({
               onClick={() => setIsAddModalOpen(true)}
               type="button"
             >
-              <Plus aria-hidden="true" className="h-3.5 w-3.5" weight="bold" />
+              <PlusIcon aria-hidden="true" className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Add</span>
             </MagneticButton>
           </div>
@@ -1207,10 +1175,9 @@ export default function App({
                 initial={{ opacity: 0, scale: 0.95 }}
               >
                 <div className="flex h-20 w-20 items-center justify-center rounded-full border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800">
-                  <TwitterLogo
+                  <TwitterLogoIcon
                     aria-hidden="true"
                     className="h-8 w-8 text-zinc-300"
-                    weight="fill"
                   />
                 </div>
                 <div className="flex flex-col gap-2">
