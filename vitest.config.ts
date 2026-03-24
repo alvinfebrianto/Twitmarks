@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "motion/react": path.resolve("./src/test/motion-mock.tsx"),
       agentation: path.resolve("./src/test/agentation-mock.tsx"),
+      "react-tweet/theme.css": path.resolve("./src/test/empty-css-mock.ts"),
     },
   },
   define: {
@@ -18,6 +19,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    deps: {
+      inline: ["react-tweet"],
+    },
     // isolate:false + single worker: all test files share one module registry so
     // modules are imported once. Required to prevent per-file jsdom cold-start
     // overhead on low-end hardware. Tests maintain hygiene via afterEach(cleanup),
