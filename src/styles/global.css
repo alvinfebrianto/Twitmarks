@@ -54,6 +54,15 @@
     margin: 0 !important;
   }
 
+  .tweet-embed a[href*="intent/follow"],
+  .tweet-embed span:has(+ a[href*="intent/follow"]) {
+    display: none !important;
+  }
+
+  .tweet-embed a[href*="help.x.com"] {
+    display: none !important;
+  }
+
   .tweet-url-card:hover,
   .tweet-url-card:focus-visible {
     background-color: var(--tweet-bg-color-hover);
