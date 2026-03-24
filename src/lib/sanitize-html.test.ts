@@ -47,6 +47,18 @@ describe("sanitizeTweetHtml", () => {
     expect(sanitizeTweetHtml(input)).toBe(input);
   });
 
+  it("preserves encoded ampersands in href values", () => {
+    const input = '<a href="https://twitter.com/x?a=1&amp;b=2">link</a>';
+    expect(sanitizeTweetHtml(input)).toBe(input);
+  });
+
+  it("does not leak content when attributes contain greater-than", () => {
+    const input = '<a href="https://twitter.com/x" title="a>b">link</a>';
+    expect(sanitizeTweetHtml(input)).toBe(
+      '<a href="https://twitter.com/x">link</a>'
+    );
+  });
+
   it("preserves t.co links", () => {
     const input = '<a href="https://t.co/abc123">link</a>';
     expect(sanitizeTweetHtml(input)).toBe(input);

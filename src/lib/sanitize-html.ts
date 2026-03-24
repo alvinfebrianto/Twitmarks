@@ -27,8 +27,23 @@ const ALLOWED_URI_REGEX =
 
 const URI_ATTRS = new Set(["href", "src"]);
 
+function decodeHtmlAttributeEntities(value: string): string {
+  return value.replace(
+    /&(amp|quot|lt|gt|#39|#x27);/gi,
+    (entity) =>
+      ({
+        "&amp;": "&",
+        "&quot;": '"',
+        "&lt;": "<",
+        "&gt;": ">",
+        "&#39;": "'",
+        "&#x27;": "'",
+      })[entity.toLowerCase()] ?? entity
+  );
+}
+
 function escapeHtmlAttributeValue(value: string): string {
-  return value
+  return decodeHtmlAttributeEntities(value)
     .replaceAll("&", "&amp;")
     .replaceAll('"', "&quot;")
     .replaceAll("<", "&lt;")
@@ -70,7 +85,7 @@ export function sanitizeTweetHtml(html: string): string {
 
   // Process HTML tags
   result = result.replace(
-    /<\/?([a-z][a-z0-9]*)\b([^>]*?)\s*\/?>/gi,
+    /<\/?([a-z][a-z0-9]*)\b((?:"[^"]*"|'[^']*'|[^'">])*)\s*\/?>/gi,
     (fullMatch, tagName: string, attrs: string) => {
       const tag = tagName.toLowerCase();
 
