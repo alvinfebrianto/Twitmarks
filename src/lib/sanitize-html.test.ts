@@ -26,6 +26,16 @@ describe("sanitizeTweetHtml", () => {
     ).toBe('<blockquote class="twitter-tweet"><p>hello</p></blockquote>');
   });
 
+  it("escapes quotes in single-quoted attribute values", () => {
+    expect(
+      sanitizeTweetHtml(
+        `<blockquote data-dnt='x"onfocus="alert(1)"tabindex="1'>test</blockquote>`
+      )
+    ).toBe(
+      '<blockquote data-dnt="x&quot;onfocus=&quot;alert(1)&quot;tabindex=&quot;1">test</blockquote>'
+    );
+  });
+
   it("removes disallowed tags but keeps content", () => {
     expect(sanitizeTweetHtml("<b>bold</b> <em>italic</em>")).toBe(
       "bold italic"

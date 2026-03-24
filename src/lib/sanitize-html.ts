@@ -27,6 +27,14 @@ const ALLOWED_URI_REGEX =
 
 const URI_ATTRS = new Set(["href", "src"]);
 
+function escapeHtmlAttributeValue(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
 function filterAttributes(attrs: string): string {
   const results: string[] = [];
   const attrRegex = /([a-z][a-z0-9-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
@@ -42,7 +50,7 @@ function filterAttributes(attrs: string): string {
       continue;
     }
 
-    results.push(`${name}="${value}"`);
+    results.push(`${name}="${escapeHtmlAttributeValue(value)}"`);
   }
 
   return results.length > 0 ? ` ${results.join(" ")}` : "";
