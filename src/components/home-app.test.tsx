@@ -35,8 +35,6 @@ vi.mock("react-tweet", () => ({
   useTweet: vi.fn(() => ({ isLoading: false, data: null, error: null })),
 }));
 
-vi.mock("react-tweet/theme.css", () => ({}));
-
 const { default: App } = await import("./home-app");
 
 beforeAll(() => {
@@ -245,7 +243,7 @@ describe("multi-select deletion", () => {
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, status: 200 })
     );
-    const { user } = renderWithUser(
+    const { container, user } = renderWithUser(
       <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
     );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
@@ -258,8 +256,8 @@ describe("multi-select deletion", () => {
       expect(
         screen.queryByRole("checkbox", { name: "Select tweet 1" })
       ).not.toBeInTheDocument();
+      expect(container.querySelectorAll(".tweet-embed")).toHaveLength(1);
     });
-    expect(screen.getByText("Second tweet content")).toBeInTheDocument();
   });
 
   it("bulk delete rolls back tweets and shows error on server failure", async () => {
@@ -267,7 +265,7 @@ describe("multi-select deletion", () => {
       "fetch",
       vi.fn().mockResolvedValue({ ok: false, status: 500 })
     );
-    const { user } = renderWithUser(
+    const { container, user } = renderWithUser(
       <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
     );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
@@ -277,11 +275,11 @@ describe("multi-select deletion", () => {
     );
     await user.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => {
-      expect(screen.getByText("First tweet content")).toBeInTheDocument();
+      expect(container.querySelectorAll(".tweet-embed")).toHaveLength(2);
+      expect(
+        screen.getByText("Failed to delete 1 tweet. Please try again.")
+      ).toBeInTheDocument();
     });
-    expect(
-      screen.getByText("Failed to delete 1 tweet. Please try again.")
-    ).toBeInTheDocument();
   });
 
   it("bulk delete locks admin and restores tweet on 401 response", async () => {
@@ -289,7 +287,7 @@ describe("multi-select deletion", () => {
       "fetch",
       vi.fn().mockResolvedValue({ ok: false, status: 401 })
     );
-    const { user } = renderWithUser(
+    const { container, user } = renderWithUser(
       <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
     );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
@@ -299,11 +297,11 @@ describe("multi-select deletion", () => {
     );
     await user.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => {
-      expect(screen.getByText("First tweet content")).toBeInTheDocument();
+      expect(container.querySelectorAll(".tweet-embed")).toHaveLength(2);
+      expect(
+        screen.getByText("Admin session expired. Please unlock again.")
+      ).toBeInTheDocument();
     });
-    expect(
-      screen.getByText("Admin session expired. Please unlock again.")
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Select tweets" })
     ).not.toBeInTheDocument();
