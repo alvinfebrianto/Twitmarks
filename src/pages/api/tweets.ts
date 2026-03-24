@@ -1,26 +1,10 @@
 import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
-import DOMPurify from "isomorphic-dompurify";
 import { requireAdminSession } from "../../lib/admin-session";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
+import { sanitizeTweetHtml } from "../../lib/sanitize-html";
 
 export const prerender = false;
-
-const ALLOWED_URI_REGEX =
-  /^(https?:\/\/)?(www\.)?(twitter\.com|x\.com|t\.co|pic\.twitter\.com|platform\.twitter\.com|pbs\.twimg\.com|video\.twimg\.com)\//i;
-
-const ALLOWED_TAGS = ["blockquote", "a", "p", "br", "span", "div", "img"];
-const ALLOWED_ATTR = [
-  "href",
-  "data-theme",
-  "data-lang",
-  "data-dnt",
-  "class",
-  "lang",
-  "dir",
-  "src",
-  "alt",
-];
 
 function getDbOrThrow(locals: App.Locals): D1Database {
   const db = locals.runtime.env.DB;
@@ -102,11 +86,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const sanitizedHtml = DOMPurify.sanitize(body.embed_html, {
-      ALLOWED_TAGS,
-      ALLOWED_ATTR,
-      ALLOWED_URI_REGEXP: ALLOWED_URI_REGEX,
-    });
+    const sanitizedHtml = sanitizeTweetHtml(body.embed_html);
     if (!sanitizedHtml.trim()) {
       throw errors.badRequest(
         "embed_html",

@@ -1,9 +1,9 @@
 "use client";
 
-import { Moon, Sun } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { cn } from "../lib/utils";
+import { MoonIcon, SunIcon } from "./icons";
 
 export function ThemeToggle() {
   const [isDark, setIsDark] = useState(false);
@@ -62,7 +62,7 @@ export function ThemeToggle() {
         disabled
         type="button"
       >
-        <Sun aria-hidden="true" className="h-4 w-4" weight="regular" />
+        <SunIcon aria-hidden="true" className="h-4 w-4" />
       </button>
     );
   }
@@ -89,7 +89,7 @@ export function ThemeToggle() {
         initial={false}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       >
-        <Sun aria-hidden="true" className="h-4 w-4" weight="regular" />
+        <SunIcon aria-hidden="true" className="h-4 w-4" />
       </motion.div>
 
       <motion.div
@@ -101,7 +101,7 @@ export function ThemeToggle() {
         initial={false}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       >
-        <Moon aria-hidden="true" className="h-4 w-4" weight="regular" />
+        <MoonIcon aria-hidden="true" className="h-4 w-4" />
       </motion.div>
     </motion.button>
   );

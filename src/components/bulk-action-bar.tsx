@@ -1,7 +1,7 @@
 "use client";
 
-import { Trash } from "@phosphor-icons/react";
 import { motion } from "motion/react";
+import { TrashIcon } from "./icons";
 
 interface BulkActionBarProps {
   isConfirming: boolean;
@@ -80,11 +80,7 @@ export function BulkActionBar({
                 onClick={onRequestDelete}
                 type="button"
               >
-                <Trash
-                  aria-hidden="true"
-                  className="h-3.5 w-3.5"
-                  weight="bold"
-                />
+                <TrashIcon aria-hidden="true" className="h-3.5 w-3.5" />
                 <span>
                   Delete {selectedCount} tweet{selectedCount !== 1 ? "s" : ""}
                 </span>

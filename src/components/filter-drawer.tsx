@@ -1,14 +1,14 @@
 "use client";
 
-import {
-  ArrowUp,
-  MagnifyingGlass,
-  SortAscending,
-  SortDescending,
-  X,
-} from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "../lib/utils";
+import {
+  ArrowUpIcon,
+  MagnifyingGlassIcon,
+  SortAscendingIcon,
+  SortDescendingIcon,
+  XIcon,
+} from "./icons";
 
 const SORTS = ["Manual", "Newest", "Oldest"];
 const DATES = ["All Time", "Last 7 Days", "Last 30 Days"];
@@ -74,14 +74,14 @@ export function FilterDrawer({
                 onClick={onClose}
                 type="button"
               >
-                <X aria-hidden="true" className="h-5 w-5" />
+                <XIcon aria-hidden="true" className="h-5 w-5" />
               </button>
             </div>
 
             <div className="flex flex-col gap-6 overflow-y-auto p-8">
               <div className="group relative">
                 <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
-                  <MagnifyingGlass
+                  <MagnifyingGlassIcon
                     aria-hidden="true"
                     className="h-5 w-5 text-zinc-400 transition-colors group-focus-within:text-accent"
                   />
@@ -105,7 +105,11 @@ export function FilterDrawer({
                       onClick={() => onSearchQueryChange("")}
                       type="button"
                     >
-                      <X aria-hidden="true" className="h-4 w-4" weight="bold" />
+                      <XIcon
+                        aria-hidden="true"
+                        className="h-4 w-4"
+                        weight="bold"
+                      />
                     </motion.button>
                   )}
                 </AnimatePresence>
@@ -153,19 +157,19 @@ export function FilterDrawer({
                         type="button"
                       >
                         {sort === "Newest" && (
-                          <SortDescending
+                          <SortDescendingIcon
                             aria-hidden="true"
                             className="h-4 w-4"
                           />
                         )}
                         {sort === "Oldest" && (
-                          <SortAscending
+                          <SortAscendingIcon
                             aria-hidden="true"
                             className="h-4 w-4"
                           />
                         )}
                         {sort === "Manual" && (
-                          <ArrowUp aria-hidden="true" className="h-4 w-4" />
+                          <ArrowUpIcon aria-hidden="true" className="h-4 w-4" />
                         )}
                         {sort}
                       </button>

@@ -8,6 +8,9 @@
       },
       "style": {
         "noNamespace": "off"
+      },
+      "a11y": {
+        "noSvgWithoutTitle": "off"
       }
     }
   },

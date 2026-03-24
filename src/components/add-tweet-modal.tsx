@@ -1,9 +1,9 @@
 "use client";
 
-import { X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { cn } from "../lib/utils";
+import { XIcon } from "./icons";
 
 interface AddTweetModalProps {
   error?: string | null;
@@ -80,7 +80,7 @@ export function AddTweetModal({
                 onClick={handleClose}
                 type="button"
               >
-                <X aria-hidden="true" className="h-5 w-5" />
+                <XIcon aria-hidden="true" className="h-5 w-5" />
               </button>
             </div>
 
@@ -131,7 +131,7 @@ export function AddTweetModal({
                         onClick={() => setEmbedHtml("")}
                         type="button"
                       >
-                        <X
+                        <XIcon
                           aria-hidden="true"
                           className="h-4 w-4"
                           weight="bold"

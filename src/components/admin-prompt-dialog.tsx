@@ -1,8 +1,8 @@
 "use client";
 
-import { X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { XIcon } from "./icons";
 
 interface AdminPromptDialogProps {
   error?: string | null;
@@ -74,7 +74,7 @@ export function AdminPromptDialog({
                 onClick={handleClose}
                 type="button"
               >
-                <X aria-hidden="true" className="h-4 w-4" />
+                <XIcon aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
             <form className="flex flex-col gap-4 p-6" onSubmit={handleSubmit}>
@@ -108,7 +108,11 @@ export function AdminPromptDialog({
                       onClick={() => setAdminInput("")}
                       type="button"
                     >
-                      <X aria-hidden="true" className="h-4 w-4" weight="bold" />
+                      <XIcon
+                        aria-hidden="true"
+                        className="h-4 w-4"
+                        weight="bold"
+                      />
                     </motion.button>
                   )}
                 </AnimatePresence>
