@@ -2,9 +2,14 @@ import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
 import { requireAdminSession } from "../../lib/admin-session";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
+import { fetchTweetText } from "../../lib/fetch-tweet-text";
 import { sanitizeTweetHtml } from "../../lib/sanitize-html";
+import { extractTweetId } from "../../lib/tweet-helpers";
 
 export const prerender = false;
+
+const BARE_TWEET_URL_RE =
+  /^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/\w+\/status\/\d+\/?$/i;
 
 function getDbOrThrow(locals: App.Locals): D1Database {
   const db = locals.runtime.env.DB;
@@ -86,40 +91,53 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const sanitizedHtml = sanitizeTweetHtml(body.embed_html);
-    if (!sanitizedHtml.trim()) {
+    const rawInput = (body.embed_html as string).trim();
+    const sanitizedHtml = sanitizeTweetHtml(rawInput);
+
+    const tweetId = extractTweetId(rawInput);
+    const isBareUrl = !!tweetId && BARE_TWEET_URL_RE.test(rawInput);
+
+    if (!(isBareUrl || sanitizedHtml.trim())) {
       throw errors.badRequest(
         "embed_html",
         "embed_html contained no allowed content after sanitization"
       );
     }
 
+    const storedHtml = isBareUrl ? rawInput : sanitizedHtml;
+    let searchText: string | null = null;
+
+    if (isBareUrl && tweetId) {
+      searchText = await fetchTweetText(tweetId).catch(() => null);
+    }
+
     const result = await db
       .prepare(
-        "INSERT INTO tweets (embed_html, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
+        "INSERT INTO tweets (embed_html, search_text, sort_order) VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
       )
-      .bind(sanitizedHtml)
+      .bind(storedHtml, searchText)
       .run();
 
-    const tweetId = result.meta?.last_row_id;
-    const createdTweet = tweetId
+    const insertedId = result.meta?.last_row_id;
+    const createdTweet = insertedId
       ? await db
           .prepare(
             "SELECT sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets WHERE id = ?"
           )
-          .bind(tweetId)
+          .bind(insertedId)
           .first<{ sort_order: number; created_at: string }>()
       : null;
     const sortOrder = createdTweet?.sort_order ?? 1;
     const createdAt = createdTweet?.created_at ?? new Date().toISOString();
 
-    log.set({ tweet: { id: tweetId, sortOrder } });
+    log.set({ tweet: { id: insertedId, sortOrder } });
     log.emit({ status: 201 });
 
     return jsonResponse(
       {
-        id: tweetId,
-        embed_html: sanitizedHtml,
+        id: insertedId,
+        embed_html: storedHtml,
+        search_text: searchText,
         sort_order: sortOrder,
         created_at: createdAt,
         success: true,
@@ -143,7 +161,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     const result = await db
       .prepare(
-        "SELECT id, embed_html, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
+        "SELECT id, embed_html, search_text, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
       )
       .all();
 

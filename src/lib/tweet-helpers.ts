@@ -2,6 +2,7 @@ export interface DbTweet {
   created_at: string;
   embed_html: string;
   id: number;
+  search_text?: string | null;
   sort_order: number;
 }
 
@@ -30,7 +31,9 @@ export function normalizeTweet(tweet: DbTweet): UiTweet {
   return {
     ...tweet,
     createdAtMs: new Date(tweet.created_at).getTime(),
-    searchBlob: extractTextContent(tweet.embed_html),
+    searchBlob: tweet.search_text
+      ? tweet.search_text.toLowerCase()
+      : extractTextContent(tweet.embed_html),
   };
 }
 
