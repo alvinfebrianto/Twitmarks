@@ -175,6 +175,23 @@ describe("admin-gated UI elements", () => {
       screen.getByRole("button", { name: "Select tweets" })
     ).toBeInTheDocument();
   });
+
+  it("empty state copy for non-admin does not reference add button", () => {
+    render(<App initialTweets={[]} />);
+    expect(
+      screen.getByText("No tweet embeds have been added yet.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Add your first tweet embed using the button above.")
+    ).not.toBeInTheDocument();
+  });
+
+  it("empty state copy for admin references add button", () => {
+    render(<App initialIsAdmin={true} initialTweets={[]} />);
+    expect(
+      screen.getByText("Add your first tweet embed using the button above.")
+    ).toBeInTheDocument();
+  });
 });
 
 describe("multi-select deletion", () => {

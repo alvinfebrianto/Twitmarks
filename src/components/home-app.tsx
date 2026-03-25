@@ -483,6 +483,22 @@ export const CustomEmbeddedTweet = ({
 
 const LAZY_LOAD_MARGIN = "800px 0px";
 
+function getEmptyStateMessage({
+  hasAnyTweets,
+  isAdmin,
+}: {
+  hasAnyTweets: boolean;
+  isAdmin: boolean;
+}) {
+  if (!hasAnyTweets) {
+    if (isAdmin) {
+      return "Add your first tweet embed using the button above.";
+    }
+    return "No tweet embeds have been added yet.";
+  }
+  return "Try adjusting your search or filters.";
+}
+
 const TweetEmbed = ({
   tweet,
   isAdmin,
@@ -1187,9 +1203,10 @@ export default function App({
                     {tweets.length === 0 ? "No tweets yet" : "No tweets found"}
                   </h3>
                   <p className="mx-auto max-w-[30ch] text-zinc-500 dark:text-zinc-400">
-                    {tweets.length === 0
-                      ? "Add your first tweet embed using the button above."
-                      : "Try adjusting your search or filters."}
+                    {getEmptyStateMessage({
+                      hasAnyTweets: tweets.length > 0,
+                      isAdmin,
+                    })}
                   </p>
                 </div>
                 {tweets.length > 0 && (
