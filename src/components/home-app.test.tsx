@@ -11,7 +11,31 @@ import {
   vi,
 } from "vitest";
 import type { DbTweet } from "../lib/tweet-helpers";
-import App from "./home-app";
+
+vi.mock("react-tweet", () => ({
+  enrichTweet: vi.fn((tweet: unknown) => ({
+    ...(tweet as object),
+    entities: [],
+    mediaDetails: [],
+  })),
+  getMediaUrl: vi.fn(() => ""),
+  QuotedTweet: () => null,
+  TweetBody: ({ tweet }: { tweet: { text: string } }) => (
+    <p>{tweet?.text ?? ""}</p>
+  ),
+  TweetContainer: ({ children }: { children: React.ReactNode }) => (
+    <article>{children}</article>
+  ),
+  TweetHeader: () => null,
+  TweetInfo: () => null,
+  TweetInReplyTo: () => null,
+  TweetMedia: () => null,
+  TweetNotFound: () => <div>Tweet not found</div>,
+  TweetSkeleton: () => <div>Loading...</div>,
+  useTweet: vi.fn(() => ({ isLoading: false, data: null, error: null })),
+}));
+
+const { default: App } = await import("./home-app");
 
 beforeAll(() => {
   cleanup();
@@ -114,7 +138,7 @@ const MOCK_TWEETS: DbTweet[] = [
   },
 ];
 
-describe("multi-select deletion", () => {
+describe("admin-gated UI elements", () => {
   beforeEach(() => {
     sessionStorage.clear();
   });
@@ -122,6 +146,20 @@ describe("multi-select deletion", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("add button is not visible without admin", () => {
+    render(<App initialTweets={MOCK_TWEETS} />);
+    expect(
+      screen.queryByRole("button", { name: "Add new tweet" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("add button is visible when admin is unlocked", () => {
+    render(<App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />);
+    expect(
+      screen.getByRole("button", { name: "Add new tweet" })
+    ).toBeInTheDocument();
   });
 
   it("select button is not visible without admin", () => {
@@ -132,16 +170,44 @@ describe("multi-select deletion", () => {
   });
 
   it("select button is visible when admin is unlocked", () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
-    render(<App initialTweets={MOCK_TWEETS} />);
+    render(<App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />);
     expect(
       screen.getByRole("button", { name: "Select tweets" })
     ).toBeInTheDocument();
   });
 
+  it("empty state copy for non-admin does not reference add button", () => {
+    render(<App initialTweets={[]} />);
+    expect(
+      screen.getByText("No tweet embeds have been added yet.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Add your first tweet embed using the button above.")
+    ).not.toBeInTheDocument();
+  });
+
+  it("empty state copy for admin references add button", () => {
+    render(<App initialIsAdmin={true} initialTweets={[]} />);
+    expect(
+      screen.getByText("Add your first tweet embed using the button above.")
+    ).toBeInTheDocument();
+  });
+});
+
+describe("multi-select deletion", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it("entering selection mode shows checkboxes for each tweet", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     expect(
       screen.getByRole("checkbox", { name: "Select tweet 1" })
@@ -152,8 +218,9 @@ describe("multi-select deletion", () => {
   });
 
   it("clicking a checkbox selects the tweet and shows bulk action bar", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     expect(
@@ -163,8 +230,9 @@ describe("multi-select deletion", () => {
   });
 
   it("clicking a selected checkbox deselects it and hides the bar", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
@@ -176,8 +244,9 @@ describe("multi-select deletion", () => {
   });
 
   it("select all selects all visible tweets", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(screen.getByRole("button", { name: "Select all 2" }));
@@ -187,12 +256,13 @@ describe("multi-select deletion", () => {
   });
 
   it("bulk delete removes selected tweets optimistically", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, status: 200 })
     );
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { container, user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(
@@ -203,17 +273,18 @@ describe("multi-select deletion", () => {
       expect(
         screen.queryByRole("checkbox", { name: "Select tweet 1" })
       ).not.toBeInTheDocument();
+      expect(container.querySelectorAll(".tweet-embed")).toHaveLength(1);
     });
-    expect(screen.getByText("Second tweet content")).toBeInTheDocument();
   });
 
   it("bulk delete rolls back tweets and shows error on server failure", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: false, status: 500 })
     );
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { container, user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(
@@ -221,20 +292,21 @@ describe("multi-select deletion", () => {
     );
     await user.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => {
-      expect(screen.getByText("First tweet content")).toBeInTheDocument();
+      expect(container.querySelectorAll(".tweet-embed")).toHaveLength(2);
+      expect(
+        screen.getByText("Failed to delete 1 tweet. Please try again.")
+      ).toBeInTheDocument();
     });
-    expect(
-      screen.getByText("Failed to delete 1 tweet. Please try again.")
-    ).toBeInTheDocument();
   });
 
   it("bulk delete locks admin and restores tweet on 401 response", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: false, status: 401 })
     );
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { container, user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(
@@ -242,19 +314,20 @@ describe("multi-select deletion", () => {
     );
     await user.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => {
-      expect(screen.getByText("First tweet content")).toBeInTheDocument();
+      expect(container.querySelectorAll(".tweet-embed")).toHaveLength(2);
+      expect(
+        screen.getByText("Admin session expired. Please unlock again.")
+      ).toBeInTheDocument();
     });
-    expect(
-      screen.getByText("Admin session expired. Please unlock again.")
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Select tweets" })
     ).not.toBeInTheDocument();
   });
 
   it("filter-driven prune resets confirmation state so bar reopens in default state", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(
@@ -285,8 +358,9 @@ describe("multi-select deletion", () => {
   });
 
   it("select all button is disabled when all tweets are selected", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(screen.getByRole("button", { name: "Select all 2" }));
@@ -294,7 +368,6 @@ describe("multi-select deletion", () => {
   });
 
   it("bulk delete shows combined error when failures include both 401 and non-401", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
     let callCount = 0;
     vi.stubGlobal(
       "fetch",
@@ -306,7 +379,9 @@ describe("multi-select deletion", () => {
         return Promise.resolve({ ok: false, status: 500 });
       })
     );
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(screen.getByRole("button", { name: "Select all 2" }));
@@ -324,8 +399,9 @@ describe("multi-select deletion", () => {
   });
 
   it("cancelling selection mode resets all state", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(screen.getByRole("button", { name: "Cancel selection" }));
@@ -340,10 +416,11 @@ describe("multi-select deletion", () => {
   });
 
   it("bulk delete sends correct tweet IDs to the delete endpoint", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     vi.stubGlobal("fetch", fetchMock);
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(
@@ -362,8 +439,9 @@ describe("multi-select deletion", () => {
   });
 
   it("partial filter-prune keeps confirming state and updates count for remaining selected tweets", async () => {
-    sessionStorage.setItem("twitmarks_admin", "test-secret");
-    const { user } = renderWithUser(<App initialTweets={MOCK_TWEETS} />);
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
     await user.click(screen.getByRole("button", { name: "Select tweets" }));
     await user.click(screen.getByRole("checkbox", { name: "Select tweet 1" }));
     await user.click(screen.getByRole("button", { name: "Select all 2" }));
