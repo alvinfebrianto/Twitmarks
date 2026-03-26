@@ -24,17 +24,43 @@ function createMockDB(
         })
       : vi.fn().mockResolvedValue(overrides.firstResult ?? null);
 
+  const runFn = vi.fn().mockResolvedValue({
+    meta: { last_row_id: 1, changes: overrides.changes ?? 1 },
+  });
+
+  const allFn = vi.fn().mockResolvedValue({ results });
+  const bindFn = vi.fn().mockReturnValue({
+    run: runFn,
+    all: allFn,
+    first: firstFn,
+  });
+
   return {
-    prepare: vi.fn().mockReturnValue({
-      bind: vi.fn().mockReturnValue({
-        run: vi.fn().mockResolvedValue({
-          meta: { last_row_id: 1, changes: overrides.changes ?? 1 },
-        }),
-        all: vi.fn().mockResolvedValue({ results }),
+    prepare: vi.fn().mockImplementation((sql: string) => {
+      if (sql === "PRAGMA table_info(tweets)") {
+        return {
+          all: vi.fn().mockResolvedValue({
+            results: [
+              { name: "id" },
+              { name: "embed_html" },
+              { name: "search_text" },
+            ],
+          }),
+        };
+      }
+
+      if (sql === "ALTER TABLE tweets ADD COLUMN search_text TEXT") {
+        return {
+          run: runFn,
+        };
+      }
+
+      return {
+        bind: bindFn,
+        run: runFn,
+        all: allFn,
         first: firstFn,
-      }),
-      all: vi.fn().mockResolvedValue({ results }),
-      first: firstFn,
+      };
     }),
     batch: vi.fn().mockResolvedValue([]),
   };
@@ -90,7 +116,7 @@ describe("POST /api/tweets", () => {
     expect(json.id).toBe(1);
     expect(json.created_at).toBeDefined();
     expect(db.prepare).toHaveBeenCalledWith(
-      "INSERT INTO tweets (embed_html, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
+      "INSERT INTO tweets (embed_html, search_text, sort_order) VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
     );
   });
 
@@ -220,6 +246,94 @@ describe("POST /api/tweets", () => {
     expect(db.prepare).not.toHaveBeenCalled();
   });
 
+  it("accepts a bare tweet URL and fetches search_text from syndication", async () => {
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () =>
+          Promise.resolve({
+            text: "Hello from Twitter",
+            user: { name: "Test", screen_name: "test" },
+          }),
+      })
+    );
+
+    const db = createMockDB();
+    const locals = createLocals({ db });
+    const request = await createRequest({
+      embed_html: "https://x.com/brfootball/status/2035915492200677484",
+    });
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(201);
+    const json = await response.json();
+    expect(json.search_text).toBe("Hello from Twitter Test @test");
+    expect(json.embed_html).toBe(
+      "https://x.com/brfootball/status/2035915492200677484"
+    );
+
+    globalThis.fetch = originalFetch;
+  });
+
+  it("accepts bare tweet URLs with query params and canonicalizes them", async () => {
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () =>
+          Promise.resolve({
+            text: "Hello from Twitter",
+            user: { name: "Test", screen_name: "test" },
+          }),
+      })
+    );
+
+    const db = createMockDB();
+    const locals = createLocals({ db });
+    const request = await createRequest({
+      embed_html:
+        "https://x.com/brfootball/status/2035915492200677484?s=20&t=abc123",
+    });
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(201);
+    const json = await response.json();
+    expect(json.search_text).toBe("Hello from Twitter Test @test");
+    expect(json.embed_html).toBe(
+      "https://x.com/brfootball/status/2035915492200677484"
+    );
+
+    globalThis.fetch = originalFetch;
+  });
+
+  it("accepts a bare tweet URL even when syndication fetch fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("network error"))
+    );
+
+    const db = createMockDB();
+    const locals = createLocals({ db });
+    const request = await createRequest({
+      embed_html: "https://x.com/user/status/123456",
+    });
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(201);
+    const json = await response.json();
+    expect(json.search_text).toBeNull();
+
+    vi.restoreAllMocks();
+  });
+
   it("returns generic 500 when ADMIN_SECRET is not configured", async () => {
     const db = createMockDB();
     const locals = {
@@ -271,6 +385,71 @@ describe("GET /api/tweets", () => {
     expect(json).toEqual(tweets);
   });
 
+  it("migrates legacy databases missing search_text before selecting", async () => {
+    const tweets = [
+      {
+        id: 1,
+        embed_html: "https://x.com/user/status/123",
+        search_text: "hello world",
+        sort_order: 1,
+        created_at: "2026-03-26T00:00:00.000Z",
+      },
+    ];
+
+    const selectSql =
+      "SELECT id, embed_html, search_text, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC";
+    let hasSearchTextColumn = false;
+
+    const pragmaAll = vi.fn().mockImplementation(async () => ({
+      results: hasSearchTextColumn
+        ? [{ name: "id" }, { name: "search_text" }]
+        : [{ name: "id" }, { name: "embed_html" }],
+    }));
+
+    const alterRun = vi.fn().mockImplementation(() => {
+      hasSearchTextColumn = true;
+      return Promise.resolve({ meta: { changes: 0 } });
+    });
+
+    const selectAll = vi.fn().mockImplementation(() => {
+      if (!hasSearchTextColumn) {
+        throw new Error("no such column: search_text");
+      }
+      return Promise.resolve({ results: tweets });
+    });
+
+    const db = {
+      prepare: vi.fn().mockImplementation((sql: string) => {
+        if (sql === "PRAGMA table_info(tweets)") {
+          return { all: pragmaAll };
+        }
+
+        if (sql === "ALTER TABLE tweets ADD COLUMN search_text TEXT") {
+          return { run: alterRun };
+        }
+
+        if (sql === selectSql) {
+          return { all: selectAll };
+        }
+
+        throw new Error(`Unexpected SQL in test: ${sql}`);
+      }),
+    };
+    const locals = createLocals({ db });
+
+    const response = await GET({
+      request: createGetRequest(),
+      locals,
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(pragmaAll).toHaveBeenCalledTimes(1);
+    expect(alterRun).toHaveBeenCalledTimes(1);
+    expect(selectAll).toHaveBeenCalledTimes(1);
+    const json = await response.json();
+    expect(json).toEqual(tweets);
+  });
+
   it("queries with sort_order ordering", async () => {
     const db = createMockDB([]);
     const locals = createLocals({ db });
@@ -278,7 +457,7 @@ describe("GET /api/tweets", () => {
     await GET({ request: createGetRequest(), locals } as never);
 
     expect(db.prepare).toHaveBeenCalledWith(
-      "SELECT id, embed_html, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
+      "SELECT id, embed_html, search_text, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
     );
   });
 

@@ -2,9 +2,19 @@ import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
 import { requireAdminSession } from "../../lib/admin-session";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
+import { fetchTweetText } from "../../lib/fetch-tweet-text";
 import { sanitizeTweetHtml } from "../../lib/sanitize-html";
+import { ensureTweetsSearchTextColumn } from "../../lib/tweets-schema";
 
 export const prerender = false;
+
+const BARE_TWEET_PATH_RE = /^\/\w+\/status\/(\d+)\/?$/i;
+const TWEET_HOSTS = new Set([
+  "x.com",
+  "www.x.com",
+  "twitter.com",
+  "www.twitter.com",
+]);
 
 function getDbOrThrow(locals: App.Locals): D1Database {
   const db = locals.runtime.env.DB;
@@ -66,6 +76,41 @@ function readPositiveInt(body: Record<string, unknown>, key: string): number {
   return value as number;
 }
 
+function parseBareTweetUrl(
+  input: string
+): { canonicalUrl: string; tweetId: string } | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(input);
+  } catch {
+    return null;
+  }
+
+  if (!(parsed.protocol === "http:" || parsed.protocol === "https:")) {
+    return null;
+  }
+
+  if (!TWEET_HOSTS.has(parsed.hostname.toLowerCase())) {
+    return null;
+  }
+
+  const pathMatch = parsed.pathname.match(BARE_TWEET_PATH_RE);
+  const tweetId = pathMatch?.[1];
+
+  if (!tweetId) {
+    return null;
+  }
+
+  const canonicalPath = parsed.pathname.endsWith("/")
+    ? parsed.pathname.slice(0, -1)
+    : parsed.pathname;
+
+  return {
+    canonicalUrl: `${parsed.origin}${canonicalPath}`,
+    tweetId,
+  };
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   const log = createWorkersLogger(request);
   try {
@@ -86,40 +131,52 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const sanitizedHtml = sanitizeTweetHtml(body.embed_html);
-    if (!sanitizedHtml.trim()) {
+    const rawInput = (body.embed_html as string).trim();
+    const sanitizedHtml = sanitizeTweetHtml(rawInput);
+
+    const bareTweet = parseBareTweetUrl(rawInput);
+
+    if (!(bareTweet || sanitizedHtml.trim())) {
       throw errors.badRequest(
         "embed_html",
         "embed_html contained no allowed content after sanitization"
       );
     }
 
+    const storedHtml = bareTweet ? bareTweet.canonicalUrl : sanitizedHtml;
+    const searchText = bareTweet
+      ? await fetchTweetText(bareTweet.tweetId)
+      : null;
+
+    await ensureTweetsSearchTextColumn(db);
+
     const result = await db
       .prepare(
-        "INSERT INTO tweets (embed_html, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
+        "INSERT INTO tweets (embed_html, search_text, sort_order) VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
       )
-      .bind(sanitizedHtml)
+      .bind(storedHtml, searchText)
       .run();
 
-    const tweetId = result.meta?.last_row_id;
-    const createdTweet = tweetId
+    const insertedId = result.meta?.last_row_id;
+    const createdTweet = insertedId
       ? await db
           .prepare(
             "SELECT sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets WHERE id = ?"
           )
-          .bind(tweetId)
+          .bind(insertedId)
           .first<{ sort_order: number; created_at: string }>()
       : null;
     const sortOrder = createdTweet?.sort_order ?? 1;
     const createdAt = createdTweet?.created_at ?? new Date().toISOString();
 
-    log.set({ tweet: { id: tweetId, sortOrder } });
+    log.set({ tweet: { id: insertedId, sortOrder } });
     log.emit({ status: 201 });
 
     return jsonResponse(
       {
-        id: tweetId,
-        embed_html: sanitizedHtml,
+        id: insertedId,
+        embed_html: storedHtml,
+        search_text: searchText,
         sort_order: sortOrder,
         created_at: createdAt,
         success: true,
@@ -141,9 +198,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     const db = getDbOrThrow(locals);
 
+    await ensureTweetsSearchTextColumn(db);
+
     const result = await db
       .prepare(
-        "SELECT id, embed_html, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
+        "SELECT id, embed_html, search_text, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
       )
       .all();
 
