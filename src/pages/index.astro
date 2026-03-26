@@ -3,6 +3,7 @@ import HomeApp from "../components/home-app";
 import { createWorkersLogger } from "evlog/workers";
 import { hasAdminSession } from "../lib/admin-session";
 import { ensureEvlogError } from "../lib/evlog";
+import { ensureTweetsSearchTextColumn } from "../lib/tweets-schema";
 import "../styles/global.css";
 
 export const prerender = false;
@@ -15,6 +16,8 @@ const initialIsAdmin = await hasAdminSession(
 );
 let initialTweets: Array<{ id: number; embed_html: string; search_text?: string | null; sort_order: number; created_at: string }> | undefined;
 try {
+  await ensureTweetsSearchTextColumn(db);
+
   const result = await db
     .prepare("SELECT id, embed_html, search_text, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC")
     .all();

@@ -4,6 +4,7 @@ import { requireAdminSession } from "../../lib/admin-session";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
 import { fetchTweetText } from "../../lib/fetch-tweet-text";
 import { sanitizeTweetHtml } from "../../lib/sanitize-html";
+import { ensureTweetsSearchTextColumn } from "../../lib/tweets-schema";
 
 export const prerender = false;
 
@@ -147,6 +148,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ? await fetchTweetText(bareTweet.tweetId)
       : null;
 
+    await ensureTweetsSearchTextColumn(db);
+
     const result = await db
       .prepare(
         "INSERT INTO tweets (embed_html, search_text, sort_order) VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
@@ -194,6 +197,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
     log.set({ api: { route: "GET /api/tweets" } });
 
     const db = getDbOrThrow(locals);
+
+    await ensureTweetsSearchTextColumn(db);
 
     const result = await db
       .prepare(
