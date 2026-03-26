@@ -51,6 +51,22 @@ describe("fetchTweetText", () => {
     expect(result).toBeNull();
   });
 
+  it("returns null when building the syndication URL throws", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const syndicationModule = await import("./syndication");
+    vi.spyOn(syndicationModule, "buildSyndicationUrl").mockImplementation(
+      () => {
+        throw new Error("invalid tweet id");
+      }
+    );
+
+    const result = await fetchTweetText("123456789");
+
+    expect(result).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("returns null when response is not ok", async () => {
     vi.stubGlobal(
       "fetch",

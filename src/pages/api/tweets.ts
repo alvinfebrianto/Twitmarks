@@ -94,8 +94,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const rawInput = (body.embed_html as string).trim();
     const sanitizedHtml = sanitizeTweetHtml(rawInput);
 
-    const tweetId = extractTweetId(rawInput);
-    const isBareUrl = !!tweetId && BARE_TWEET_URL_RE.test(rawInput);
+    const extractedTweetId = extractTweetId(rawInput);
+    const bareTweetId =
+      extractedTweetId && BARE_TWEET_URL_RE.test(rawInput)
+        ? extractedTweetId
+        : null;
+    const isBareUrl = bareTweetId !== null;
 
     if (!(isBareUrl || sanitizedHtml.trim())) {
       throw errors.badRequest(
@@ -107,8 +111,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const storedHtml = isBareUrl ? rawInput : sanitizedHtml;
     let searchText: string | null = null;
 
-    if (isBareUrl && tweetId) {
-      searchText = await fetchTweetText(tweetId).catch(() => null);
+    if (bareTweetId) {
+      try {
+        searchText = await fetchTweetText(bareTweetId);
+      } catch {
+        searchText = null;
+      }
     }
 
     const result = await db

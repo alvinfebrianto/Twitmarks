@@ -1,9 +1,9 @@
 import { buildSyndicationUrl } from "./syndication";
 
 export async function fetchTweetText(tweetId: string): Promise<string | null> {
-  const url = buildSyndicationUrl(tweetId);
-
   try {
+    const url = buildSyndicationUrl(tweetId);
+
     const res = await fetch(url.toString(), {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(5000),
