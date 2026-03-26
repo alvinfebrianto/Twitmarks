@@ -253,6 +253,40 @@ describe("POST /api/tweets", () => {
     globalThis.fetch = originalFetch;
   });
 
+  it("accepts bare tweet URLs with query params and canonicalizes them", async () => {
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () =>
+          Promise.resolve({
+            text: "Hello from Twitter",
+            user: { name: "Test", screen_name: "test" },
+          }),
+      })
+    );
+
+    const db = createMockDB();
+    const locals = createLocals({ db });
+    const request = await createRequest({
+      embed_html:
+        "https://x.com/brfootball/status/2035915492200677484?s=20&t=abc123",
+    });
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(201);
+    const json = await response.json();
+    expect(json.search_text).toBe("Hello from Twitter Test @test");
+    expect(json.embed_html).toBe(
+      "https://x.com/brfootball/status/2035915492200677484"
+    );
+
+    globalThis.fetch = originalFetch;
+  });
+
   it("accepts a bare tweet URL even when syndication fetch fails", async () => {
     vi.stubGlobal(
       "fetch",

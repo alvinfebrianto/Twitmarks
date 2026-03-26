@@ -4,12 +4,16 @@ import { requireAdminSession } from "../../lib/admin-session";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
 import { fetchTweetText } from "../../lib/fetch-tweet-text";
 import { sanitizeTweetHtml } from "../../lib/sanitize-html";
-import { extractTweetId } from "../../lib/tweet-helpers";
 
 export const prerender = false;
 
-const BARE_TWEET_URL_RE =
-  /^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/\w+\/status\/\d+\/?$/i;
+const BARE_TWEET_PATH_RE = /^\/\w+\/status\/(\d+)\/?$/i;
+const TWEET_HOSTS = new Set([
+  "x.com",
+  "www.x.com",
+  "twitter.com",
+  "www.twitter.com",
+]);
 
 function getDbOrThrow(locals: App.Locals): D1Database {
   const db = locals.runtime.env.DB;
@@ -71,6 +75,41 @@ function readPositiveInt(body: Record<string, unknown>, key: string): number {
   return value as number;
 }
 
+function parseBareTweetUrl(
+  input: string
+): { canonicalUrl: string; tweetId: string } | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(input);
+  } catch {
+    return null;
+  }
+
+  if (!(parsed.protocol === "http:" || parsed.protocol === "https:")) {
+    return null;
+  }
+
+  if (!TWEET_HOSTS.has(parsed.hostname.toLowerCase())) {
+    return null;
+  }
+
+  const pathMatch = parsed.pathname.match(BARE_TWEET_PATH_RE);
+  const tweetId = pathMatch?.[1];
+
+  if (!tweetId) {
+    return null;
+  }
+
+  const canonicalPath = parsed.pathname.endsWith("/")
+    ? parsed.pathname.slice(0, -1)
+    : parsed.pathname;
+
+  return {
+    canonicalUrl: `${parsed.origin}${canonicalPath}`,
+    tweetId,
+  };
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   const log = createWorkersLogger(request);
   try {
@@ -94,30 +133,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const rawInput = (body.embed_html as string).trim();
     const sanitizedHtml = sanitizeTweetHtml(rawInput);
 
-    const extractedTweetId = extractTweetId(rawInput);
-    const bareTweetId =
-      extractedTweetId && BARE_TWEET_URL_RE.test(rawInput)
-        ? extractedTweetId
-        : null;
-    const isBareUrl = bareTweetId !== null;
+    const bareTweet = parseBareTweetUrl(rawInput);
 
-    if (!(isBareUrl || sanitizedHtml.trim())) {
+    if (!(bareTweet || sanitizedHtml.trim())) {
       throw errors.badRequest(
         "embed_html",
         "embed_html contained no allowed content after sanitization"
       );
     }
 
-    const storedHtml = isBareUrl ? rawInput : sanitizedHtml;
-    let searchText: string | null = null;
-
-    if (bareTweetId) {
-      try {
-        searchText = await fetchTweetText(bareTweetId);
-      } catch {
-        searchText = null;
-      }
-    }
+    const storedHtml = bareTweet ? bareTweet.canonicalUrl : sanitizedHtml;
+    const searchText = bareTweet
+      ? await fetchTweetText(bareTweet.tweetId)
+      : null;
 
     const result = await db
       .prepare(
