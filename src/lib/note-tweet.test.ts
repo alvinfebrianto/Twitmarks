@@ -109,27 +109,29 @@ describe("enrichNoteTweet", () => {
     );
   });
 
-  it("returns original tweet when fxtwitter returns non-OK", async () => {
+  it("strips note_tweet when fxtwitter returns non-OK", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("Not Found", { status: 404 }))
     );
     const tweet = makeTweet({ text: "truncated…", note_tweet: { id: "abc" } });
     const result = await enrichNoteTweet(tweet);
-    expect(result).toBe(tweet);
+    expect(result.note_tweet).toBeUndefined();
+    expect(result.text).toBe("truncated…");
   });
 
-  it("returns original tweet when fetch throws", async () => {
+  it("strips note_tweet when fetch throws", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockRejectedValue(new Error("Network error"))
     );
     const tweet = makeTweet({ text: "truncated…", note_tweet: { id: "abc" } });
     const result = await enrichNoteTweet(tweet);
-    expect(result).toBe(tweet);
+    expect(result.note_tweet).toBeUndefined();
+    expect(result.text).toBe("truncated…");
   });
 
-  it("returns original tweet when fxtwitter response has no text", async () => {
+  it("strips note_tweet when fxtwitter response has no text", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -141,7 +143,8 @@ describe("enrichNoteTweet", () => {
     );
     const tweet = makeTweet({ text: "truncated…", note_tweet: { id: "abc" } });
     const result = await enrichNoteTweet(tweet);
-    expect(result).toBe(tweet);
+    expect(result.note_tweet).toBeUndefined();
+    expect(result.text).toBe("truncated…");
   });
 
   it("remaps hashtag and mention indices to match full text", async () => {

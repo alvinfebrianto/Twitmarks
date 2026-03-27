@@ -7,6 +7,8 @@ export async function enrichNoteTweet(tweet: Tweet): Promise<Tweet> {
     return tweet;
   }
 
+  const stripNoteTweet = (t: Tweet): Tweet => ({ ...t, note_tweet: undefined });
+
   try {
     const res = await fetch(`${FXTWITTER_URL}/${tweet.id_str}`, {
       headers: { Accept: "application/json" },
@@ -14,7 +16,7 @@ export async function enrichNoteTweet(tweet: Tweet): Promise<Tweet> {
     });
 
     if (!res.ok) {
-      return tweet;
+      return stripNoteTweet(tweet);
     }
 
     const data = (await res.json()) as {
@@ -23,7 +25,7 @@ export async function enrichNoteTweet(tweet: Tweet): Promise<Tweet> {
     const fullText = data?.tweet?.text;
 
     if (typeof fullText !== "string" || !fullText) {
-      return tweet;
+      return stripNoteTweet(tweet);
     }
 
     const textChars = Array.from(fullText);
@@ -36,7 +38,7 @@ export async function enrichNoteTweet(tweet: Tweet): Promise<Tweet> {
       note_tweet: undefined,
     };
   } catch {
-    return tweet;
+    return stripNoteTweet(tweet);
   }
 }
 
