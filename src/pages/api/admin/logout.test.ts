@@ -55,4 +55,24 @@ describe("POST /api/admin/logout", () => {
 
     expect(tweetResponse.status).toBe(401);
   });
+
+  it("returns a JSON error and clears cookie when logout fails", async () => {
+    const locals = createLocals({ db: 0 });
+
+    const response = await logout({
+      request: new Request("http://localhost/api/admin/logout", {
+        method: "POST",
+        headers: { Cookie: "__Host-twitmarks-admin=stale" },
+      }),
+      locals,
+    } as never);
+
+    expect(response.status).toBe(500);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(response.headers.get("Set-Cookie")).toContain("Max-Age=0");
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal server error",
+      status: 500,
+    });
+  });
 });
