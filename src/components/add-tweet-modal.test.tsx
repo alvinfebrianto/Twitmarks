@@ -25,8 +25,8 @@ describe("AddTweetModal", () => {
       <AddTweetModal isOpen={true} onClose={vi.fn()} onSubmit={vi.fn()} />
     );
 
-    expect(screen.getByText("Add Tweet Embed")).toBeInTheDocument();
-    expect(screen.getByLabelText("Twitter Embed Code")).toBeInTheDocument();
+    expect(screen.getByText("Add Tweet URL")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tweet URL")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Add Tweet" })
     ).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe("AddTweetModal", () => {
       <AddTweetModal isOpen={false} onClose={vi.fn()} onSubmit={vi.fn()} />
     );
 
-    expect(screen.queryByText("Add Tweet Embed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add Tweet URL")).not.toBeInTheDocument();
   });
 
   it("calls onClose when close button is clicked", async () => {
@@ -51,24 +51,19 @@ describe("AddTweetModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onSubmit with embed HTML when form is submitted", async () => {
+  it("calls onSubmit with the tweet URL when form is submitted", async () => {
     const onSubmit = vi.fn();
     const { user } = renderWithUser(
       <AddTweetModal isOpen={true} onClose={vi.fn()} onSubmit={onSubmit} />
     );
 
-    const textarea = screen.getByLabelText("Twitter Embed Code");
+    const textarea = screen.getByLabelText("Tweet URL");
     const submitButton = screen.getByRole("button", { name: "Add Tweet" });
 
-    await user.type(
-      textarea,
-      '<blockquote class="twitter-tweet">...</blockquote>'
-    );
+    await user.type(textarea, "https://x.com/user/status/123");
     await user.click(submitButton);
 
-    expect(onSubmit).toHaveBeenCalledWith(
-      '<blockquote class="twitter-tweet">...</blockquote>'
-    );
+    expect(onSubmit).toHaveBeenCalledWith("https://x.com/user/status/123");
   });
 
   it("shows loading state while submitting", async () => {
@@ -79,7 +74,10 @@ describe("AddTweetModal", () => {
       <AddTweetModal isOpen={true} onClose={vi.fn()} onSubmit={onSubmit} />
     );
 
-    await user.type(screen.getByLabelText("Twitter Embed Code"), "test embed");
+    await user.type(
+      screen.getByLabelText("Tweet URL"),
+      "https://x.com/user/status/123"
+    );
     await user.click(screen.getByRole("button", { name: "Add Tweet" }));
 
     expect(screen.getByText("Adding...")).toBeInTheDocument();
@@ -114,12 +112,12 @@ describe("AddTweetModal", () => {
       <AddTweetModal isOpen={true} onClose={vi.fn()} onSubmit={onSubmit} />
     );
 
-    const textarea = screen.getByLabelText("Twitter Embed Code");
+    const textarea = screen.getByLabelText("Tweet URL");
 
-    await user.type(textarea, "<blockquote>tweet</blockquote>");
+    await user.type(textarea, "https://x.com/user/status/123");
     await user.click(screen.getByRole("button", { name: "Add Tweet" }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(textarea).toHaveValue("<blockquote>tweet</blockquote>");
+    expect(textarea).toHaveValue("https://x.com/user/status/123");
   });
 });

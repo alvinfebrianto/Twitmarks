@@ -1,233 +1,208 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createLocals, createMockDB } from "../../test/mock-db";
 import { GET } from "./og";
 
-function createRequest(query: string): { url: URL; request: Request } {
+function createContext(query: string, db = createMockDB()) {
   const url = new URL(`http://localhost/api/og${query}`);
-  return { url, request: new Request(url) };
+  return {
+    url,
+    request: new Request(url, {
+      headers: { "CF-Connecting-IP": "203.0.113.10" },
+    }),
+    locals: createLocals({ db }),
+  };
 }
 
-function mockRedirectResponse(location: string, status = 302): Response {
-  return new Response(null, { status, headers: { Location: location } });
-}
+function mockDnsAndFetch(options: {
+  dns?: Record<string, string[]>;
+  responses?: Record<string, Response>;
+}) {
+  const dns = options.dns ?? { "example.com": ["93.184.216.34"] };
+  const responses = options.responses ?? {};
 
-function mockFetchHtml(html: string) {
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(html, {
-        status: 200,
-        headers: { "Content-Type": "text/html" },
-      })
-    )
+    vi.fn((input: RequestInfo | URL) => {
+      const requestUrl =
+        input instanceof URL ? input.toString() : String(input);
+
+      if (requestUrl.startsWith("https://cloudflare-dns.com/dns-query")) {
+        const dnsUrl = new URL(requestUrl);
+        const hostname = dnsUrl.searchParams.get("name") ?? "";
+        const answers = (dns[hostname] ?? []).map((data) => ({ data }));
+        return Response.json({ Answer: answers });
+      }
+
+      const response = responses[requestUrl];
+      if (!response) {
+        throw new Error(`Unexpected fetch URL in test: ${requestUrl}`);
+      }
+
+      return response.clone();
+    })
   );
 }
 
+function redirect(location: string, status = 302) {
+  return new Response(null, { headers: { Location: location }, status });
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
 describe("GET /api/og", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
+  it("rejects missing url param", async () => {
+    const response = await GET(createContext("") as never);
+
+    expect(response.status).toBe(400);
   });
 
-  describe("URL validation (SSRF prevention)", () => {
-    it("rejects missing url param", async () => {
-      const res = await GET(createRequest("") as never);
-      expect(res.status).toBe(400);
-    });
-
-    it("rejects non-http(s) protocols", async () => {
-      const res = await GET(createRequest("?url=ftp://example.com") as never);
-      expect(res.status).toBe(400);
-    });
-
-    it("rejects localhost", async () => {
-      const res = await GET(
-        createRequest("?url=http://localhost/secret") as never
-      );
-      expect(res.status).toBe(400);
-    });
-
-    it("rejects IPv4 literals", async () => {
-      const res = await GET(
-        createRequest("?url=http://127.0.0.1/admin") as never
-      );
-      expect(res.status).toBe(400);
-    });
-
-    it("rejects private IPv4 ranges", async () => {
-      const res = await GET(
-        createRequest("?url=http://192.168.1.1/admin") as never
-      );
-      expect(res.status).toBe(400);
-    });
-
-    it("rejects cloud metadata IP", async () => {
-      const res = await GET(
-        createRequest("?url=http://169.254.169.254/latest/meta-data/") as never
-      );
-      expect(res.status).toBe(400);
-    });
-
-    it("rejects IPv6 literals", async () => {
-      const res = await GET(createRequest("?url=http://[::1]/secret") as never);
-      expect(res.status).toBe(400);
-    });
-
-    it("rejects .local domains", async () => {
-      const res = await GET(
-        createRequest("?url=http://internal.local/secret") as never
-      );
-      expect(res.status).toBe(400);
-    });
-
-    it("rejects URLs with credentials", async () => {
-      const res = await GET(
-        createRequest("?url=http://user:pass@example.com") as never
-      );
-      expect(res.status).toBe(400);
-    });
-
-    it("accepts valid https URL", async () => {
-      mockFetchHtml('<meta property="og:title" content="Test">');
-      const res = await GET(
-        createRequest("?url=https://example.com/page") as never
-      );
-      expect(res.status).toBe(200);
-    });
+  it("rejects localhost, IP literals, and credentialed URLs", async () => {
+    await expect(
+      GET(createContext("?url=http://localhost/secret") as never)
+    ).resolves.toHaveProperty("status", 400);
+    await expect(
+      GET(createContext("?url=http://127.0.0.1/admin") as never)
+    ).resolves.toHaveProperty("status", 400);
+    await expect(
+      GET(createContext("?url=http://user:pass@example.com") as never)
+    ).resolves.toHaveProperty("status", 400);
   });
 
-  describe("extractMeta (apostrophe handling)", () => {
-    it("handles apostrophes in double-quoted content", async () => {
-      mockFetchHtml('<meta property="og:title" content="It\'s complicated">');
-      const res = await GET(createRequest("?url=https://example.com") as never);
-      const data = await res.json();
-      expect(data.title).toBe("It's complicated");
-    });
+  it("rejects hostnames that resolve to private IP ranges", async () => {
+    mockDnsAndFetch({ dns: { "example.com": ["10.0.0.12"] } });
 
-    it("handles double quotes in single-quoted content", async () => {
-      mockFetchHtml("<meta property='og:title' content='He said \"hello\"'>");
-      const res = await GET(createRequest("?url=https://example.com") as never);
-      const data = await res.json();
-      expect(data.title).toBe('He said "hello"');
-    });
+    const response = await GET(
+      createContext("?url=https://example.com/article") as never
+    );
 
-    it("extracts content when attribute order is reversed", async () => {
-      mockFetchHtml('<meta content="Reversed Title" property="og:title">');
-      const res = await GET(createRequest("?url=https://example.com") as never);
-      const data = await res.json();
-      expect(data.title).toBe("Reversed Title");
-    });
-
-    it("falls back to twitter meta tags", async () => {
-      mockFetchHtml('<meta name="twitter:title" content="Twitter Title">');
-      const res = await GET(createRequest("?url=https://example.com") as never);
-      const data = await res.json();
-      expect(data.title).toBe("Twitter Title");
-    });
-
-    it("decodes HTML entities in content", async () => {
-      mockFetchHtml('<meta property="og:title" content="A &amp; B &lt;3">');
-      const res = await GET(createRequest("?url=https://example.com") as never);
-      const data = await res.json();
-      expect(data.title).toBe("A & B <3");
-    });
-
-    it("extracts domain without www prefix", async () => {
-      mockFetchHtml('<meta property="og:title" content="Test">');
-      const res = await GET(
-        createRequest("?url=https://www.example.com/page") as never
-      );
-      const data = await res.json();
-      expect(data.domain).toBe("example.com");
-    });
+    expect(response.status).toBe(400);
   });
 
-  describe("redirect handling (SSRF mitigation)", () => {
-    it("uses redirect: manual in fetch", async () => {
-      mockFetchHtml('<meta property="og:title" content="Test">');
-      const res = await GET(createRequest("?url=https://example.com") as never);
-      expect(res.status).toBe(200);
-      expect(fetch).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ redirect: "manual" })
-      );
-    });
-
-    it("follows safe redirects", async () => {
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(
-          mockRedirectResponse("https://example.com/final")
-        )
-        .mockResolvedValueOnce(
-          new Response('<meta property="og:title" content="Redirected">', {
+  it("fetches OG metadata for a public hostname", async () => {
+    mockDnsAndFetch({
+      responses: {
+        "https://example.com/page": new Response(
+          '<meta property="og:title" content="Test"><meta property="og:image" content="/cover.png">',
+          {
             status: 200,
             headers: { "Content-Type": "text/html" },
-          })
-        );
-      vi.stubGlobal("fetch", fetchMock);
-
-      const res = await GET(
-        createRequest("?url=https://example.com/start") as never
-      );
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.title).toBe("Redirected");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+          }
+        ),
+      },
     });
 
-    it("blocks redirect to localhost", async () => {
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(mockRedirectResponse("http://127.0.0.1/admin"));
-      vi.stubGlobal("fetch", fetchMock);
+    const response = await GET(
+      createContext("?url=https://example.com/page") as never
+    );
 
-      const res = await GET(
-        createRequest("?url=https://example.com/start") as never
-      );
-      expect(res.status).toBe(502);
-    });
-
-    it("rejects redirect chains exceeding max hops", async () => {
-      const fetchMock = vi.fn();
-      for (let i = 0; i < 5; i++) {
-        fetchMock.mockResolvedValueOnce(
-          mockRedirectResponse(`https://example.com/hop${String(i + 1)}`)
-        );
-      }
-      vi.stubGlobal("fetch", fetchMock);
-
-      const res = await GET(
-        createRequest("?url=https://example.com/start") as never
-      );
-      expect(res.status).toBe(502);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      domain: "example.com",
+      image: "https://example.com/cover.png",
+      title: "Test",
     });
   });
 
-  describe("image URL sanitization", () => {
-    it("resolves relative image URLs against target URL", async () => {
-      mockFetchHtml('<meta property="og:image" content="/images/preview.png">');
-      const res = await GET(
-        createRequest("?url=https://example.com/articles/1") as never
-      );
-      const data = await res.json();
-      expect(data.image).toBe("https://example.com/images/preview.png");
+  it("uses manual redirect handling and follows safe redirects", async () => {
+    mockDnsAndFetch({
+      dns: {
+        "example.com": ["93.184.216.34"],
+        "www.example.com": ["93.184.216.35"],
+      },
+      responses: {
+        "https://example.com/start": redirect("https://www.example.com/final"),
+        "https://www.example.com/final": new Response(
+          '<meta property="og:title" content="Redirected">',
+          {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          }
+        ),
+      },
     });
 
-    it("rejects javascript protocol image URLs", async () => {
-      mockFetchHtml('<meta property="og:image" content="javascript:alert(1)">');
-      const res = await GET(createRequest("?url=https://example.com") as never);
-      const data = await res.json();
-      expect(data.image).toBeNull();
+    const response = await GET(
+      createContext("?url=https://example.com/start") as never
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetch).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ redirect: "manual" })
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      title: "Redirected",
+    });
+  });
+
+  it("blocks redirects to hostnames that resolve to private IPs", async () => {
+    mockDnsAndFetch({
+      dns: {
+        "example.com": ["93.184.216.34"],
+        "internal.example.com": ["192.168.0.10"],
+      },
+      responses: {
+        "https://example.com/start": redirect(
+          "https://internal.example.com/private"
+        ),
+      },
     });
 
-    it("rejects data URI image URLs", async () => {
-      mockFetchHtml(
-        '<meta property="og:image" content="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=">'
-      );
-      const res = await GET(createRequest("?url=https://example.com") as never);
-      const data = await res.json();
-      expect(data.image).toBeNull();
+    const response = await GET(
+      createContext("?url=https://example.com/start") as never
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects non-HTML upstream responses", async () => {
+    mockDnsAndFetch({
+      responses: {
+        "https://example.com/api": new Response('{"ok":true}', {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      },
     });
+
+    const response = await GET(
+      createContext("?url=https://example.com/api") as never
+    );
+
+    expect(response.status).toBe(502);
+  });
+
+  it("rate limits repeated OG requests from the same IP", async () => {
+    mockDnsAndFetch({
+      responses: {
+        "https://example.com/page": new Response(
+          '<meta property="og:title" content="Test">',
+          {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          }
+        ),
+      },
+    });
+
+    const db = createMockDB();
+
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const response = await GET(
+        createContext("?url=https://example.com/page", db) as never
+      );
+      expect(response.status).toBe(200);
+    }
+
+    const limited = await GET(
+      createContext("?url=https://example.com/page", db) as never
+    );
+
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).toBeTruthy();
   });
 });

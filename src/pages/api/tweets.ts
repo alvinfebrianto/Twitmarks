@@ -1,10 +1,11 @@
 import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
 import { requireAdminSession } from "../../lib/admin-session";
+import { getDbOrThrow } from "../../lib/db";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
 import { fetchTweetText } from "../../lib/fetch-tweet-text";
-import { sanitizeTweetHtml } from "../../lib/sanitize-html";
-import { ensureTweetsSearchTextColumn } from "../../lib/tweets-schema";
+import { readJsonObject } from "../../lib/request-body";
+import { ensureDatabaseSchema } from "../../lib/tweets-schema";
 
 export const prerender = false;
 
@@ -15,14 +16,8 @@ const TWEET_HOSTS = new Set([
   "twitter.com",
   "www.twitter.com",
 ]);
-
-function getDbOrThrow(locals: App.Locals): D1Database {
-  const db = locals.runtime.env.DB;
-  if (!db) {
-    throw errors.database("check database connection");
-  }
-  return db;
-}
+const MAX_TWEETS_BODY_BYTES = 12_288;
+const MAX_TWEET_URL_LENGTH = 2048;
 
 function requireJsonContentType(request: Request): void {
   const contentType = request.headers.get("Content-Type") ?? "";
@@ -48,21 +43,6 @@ function errorResponse(error: { status: number }) {
     status: error.status,
     headers: { "Content-Type": "application/json" },
   });
-}
-
-async function readJsonObject(
-  request: Request
-): Promise<Record<string, unknown>> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    throw errors.badRequest("body", "Request body must be valid JSON");
-  }
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw errors.badRequest("body", "Request body must be a JSON object");
-  }
-  return body as Record<string, unknown>;
 }
 
 function readPositiveInt(body: Record<string, unknown>, key: string): number {
@@ -119,10 +99,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
     const db = getDbOrThrow(locals);
-    await requireAdminSession(request, locals.runtime.env.ADMIN_SECRET);
+    await ensureDatabaseSchema(db);
+    await requireAdminSession(request, db);
     requireJsonContentType(request);
 
-    const body = await readJsonObject(request);
+    const body = await readJsonObject(request, MAX_TWEETS_BODY_BYTES);
 
     if (!body.embed_html || typeof body.embed_html !== "string") {
       throw errors.badRequest(
@@ -132,23 +113,31 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const rawInput = (body.embed_html as string).trim();
-    const sanitizedHtml = sanitizeTweetHtml(rawInput);
-
-    const bareTweet = parseBareTweetUrl(rawInput);
-
-    if (!(bareTweet || sanitizedHtml.trim())) {
+    if (!rawInput) {
       throw errors.badRequest(
         "embed_html",
-        "embed_html contained no allowed content after sanitization"
+        "embed_html is required and must be a string"
       );
     }
 
-    const storedHtml = bareTweet ? bareTweet.canonicalUrl : sanitizedHtml;
-    const searchText = bareTweet
-      ? await fetchTweetText(bareTweet.tweetId)
-      : null;
+    if (rawInput.length > MAX_TWEET_URL_LENGTH) {
+      throw errors.badRequest(
+        "embed_html",
+        `embed_html must be ${MAX_TWEET_URL_LENGTH} characters or fewer`
+      );
+    }
 
-    await ensureTweetsSearchTextColumn(db);
+    const bareTweet = parseBareTweetUrl(rawInput);
+
+    if (!bareTweet) {
+      throw errors.badRequest(
+        "embed_html",
+        "embed_html must be a valid tweet URL"
+      );
+    }
+
+    const storedHtml = bareTweet.canonicalUrl;
+    const searchText = await fetchTweetText(bareTweet.tweetId);
 
     const result = await db
       .prepare(
@@ -197,8 +186,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     log.set({ api: { route: "GET /api/tweets" } });
 
     const db = getDbOrThrow(locals);
-
-    await ensureTweetsSearchTextColumn(db);
+    await ensureDatabaseSchema(db);
 
     const result = await db
       .prepare(
@@ -231,10 +219,11 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     log.set({ api: { route: "DELETE /api/tweets" } });
 
     const db = getDbOrThrow(locals);
-    await requireAdminSession(request, locals.runtime.env.ADMIN_SECRET);
+    await ensureDatabaseSchema(db);
+    await requireAdminSession(request, db);
     requireJsonContentType(request);
 
-    const body = await readJsonObject(request);
+    const body = await readJsonObject(request, MAX_TWEETS_BODY_BYTES);
     const id = readPositiveInt(body, "id");
 
     const result = await db
@@ -264,10 +253,11 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     log.set({ api: { route: "PATCH /api/tweets" } });
 
     const db = getDbOrThrow(locals);
-    await requireAdminSession(request, locals.runtime.env.ADMIN_SECRET);
+    await ensureDatabaseSchema(db);
+    await requireAdminSession(request, db);
     requireJsonContentType(request);
 
-    const body = await readJsonObject(request);
+    const body = await readJsonObject(request, MAX_TWEETS_BODY_BYTES);
     const movedId = readPositiveInt(body, "movedId");
     const targetId = readPositiveInt(body, "targetId");
 

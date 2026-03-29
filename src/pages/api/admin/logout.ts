@@ -1,12 +1,21 @@
 import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
-import { buildClearCookie } from "../../../lib/admin-session";
+import {
+  buildClearCookie,
+  revokeAdminSession,
+} from "../../../lib/admin-session";
+import { getDbOrThrow } from "../../../lib/db";
+import { ensureDatabaseSchema } from "../../../lib/tweets-schema";
 
 export const prerender = false;
 
-export const POST: APIRoute = ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   const log = createWorkersLogger(request);
   log.set({ api: { route: "POST /api/admin/logout" } });
+
+  const db = getDbOrThrow(locals);
+  await ensureDatabaseSchema(db);
+  await revokeAdminSession(request, db);
   log.emit({ status: 200 });
 
   return new Response(JSON.stringify({ success: true }), {

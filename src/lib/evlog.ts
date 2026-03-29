@@ -34,6 +34,17 @@ export const errors = {
       fix: `Please provide a valid ${field}`,
     }),
 
+  tooManyRequests: (retryAfterSeconds: number) =>
+    Object.assign(
+      createError({
+        message: "Too many requests",
+        status: 429,
+        why: "Rate limit exceeded",
+        fix: "Wait a moment and try again",
+      }),
+      { retryAfter: retryAfterSeconds }
+    ),
+
   database: (operation: string, cause?: unknown) =>
     createError({
       message: "Database operation failed",
@@ -67,12 +78,19 @@ export function ensureEvlogError(
   return createError({
     message: defaultMessage,
     status: 500,
-    why: error instanceof Error ? error.message : String(error),
+    why: "An unexpected error occurred on the server",
     cause: error instanceof Error ? error : undefined,
   });
 }
 
 export function errorToObject(error: EvlogError): Record<string, unknown> {
+  if (error.status >= 500) {
+    return {
+      error: "Internal server error",
+      status: error.status,
+    };
+  }
+
   return {
     error: error.message,
     status: error.status,
