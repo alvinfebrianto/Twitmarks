@@ -2,21 +2,20 @@
 import HomeApp from "../components/home-app";
 import { createWorkersLogger } from "evlog/workers";
 import { hasAdminSession } from "../lib/admin-session";
+import { getDbOrThrow } from "../lib/db";
 import { ensureEvlogError } from "../lib/evlog";
-import { ensureTweetsSearchTextColumn } from "../lib/tweets-schema";
+import { ensureDatabaseSchema } from "../lib/tweets-schema";
 import "../styles/global.css";
 
 export const prerender = false;
 
-const db = Astro.locals.runtime.env.DB;
 const log = createWorkersLogger(Astro.request);
-const initialIsAdmin = await hasAdminSession(
-  Astro.request,
-  Astro.locals.runtime.env.ADMIN_SECRET
-);
+let initialIsAdmin = false;
 let initialTweets: Array<{ id: number; embed_html: string; search_text?: string | null; sort_order: number; created_at: string }> | undefined;
 try {
-  await ensureTweetsSearchTextColumn(db);
+  const db = getDbOrThrow(Astro.locals);
+  await ensureDatabaseSchema(db);
+  initialIsAdmin = await hasAdminSession(Astro.request, db);
 
   const result = await db
     .prepare("SELECT id, embed_html, search_text, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC")
@@ -45,17 +44,7 @@ try {
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet" />
-    <script
-      is:inline
-    >
-      try {
-        const theme = localStorage.getItem("theme");
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        if (theme === "dark" || (!theme && prefersDark)) {
-          document.documentElement.classList.add("dark");
-        }
-      } catch {}
-    </script>
+    <script is:inline src="/theme-init.js"></script>
 
   </head>
   <body>

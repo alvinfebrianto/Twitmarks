@@ -1326,13 +1326,13 @@ export default function App({
           setIsAddModalOpen(false);
           setAddError(null);
         }}
-        onSubmit={async (embedHtml) => {
+        onSubmit={async (tweetUrl) => {
           setAddError(null);
           try {
             const response = await fetch("/api/tweets", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ embed_html: embedHtml }),
+              body: JSON.stringify({ embed_html: tweetUrl }),
             });
 
             if (response.status === 401) {

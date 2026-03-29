@@ -2,20 +2,31 @@ import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
 import {
   buildSetCookie,
-  createSessionValue,
+  createAdminSession,
   verifyAdminSecret,
 } from "../../../lib/admin-session";
+import { getDbOrThrow } from "../../../lib/db";
 import { ensureEvlogError, errors, errorToObject } from "../../../lib/evlog";
+import { enforceRateLimit } from "../../../lib/rate-limit";
+import { readJsonObject } from "../../../lib/request-body";
+import { ensureDatabaseSchema } from "../../../lib/tweets-schema";
 
 export const prerender = false;
+const MAX_LOGIN_BODY_BYTES = 1024;
 
-function errorResponse(error: { status: number }) {
+function errorResponse(error: { retryAfter?: number; status: number }) {
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
+  });
+
+  if (typeof error.retryAfter === "number") {
+    headers.set("Retry-After", String(error.retryAfter));
+  }
+
   return new Response(JSON.stringify(errorToObject(error as never)), {
     status: error.status,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "no-store",
-    },
+    headers,
   });
 }
 
@@ -24,6 +35,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   try {
     log.set({ api: { route: "POST /api/admin/login" } });
+
+    const db = getDbOrThrow(locals);
+    await ensureDatabaseSchema(db);
+    await enforceRateLimit(db, request, {
+      limit: 5,
+      scope: "admin-login",
+      windowSeconds: 60,
+    });
 
     const contentType = request.headers.get("Content-Type") ?? "";
     if (
@@ -39,18 +58,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      throw errors.badRequest("body", "Request body must be valid JSON");
-    }
+    const body = await readJsonObject(request, MAX_LOGIN_BODY_BYTES);
 
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      throw errors.badRequest("body", "Request body must be a JSON object");
-    }
-
-    const { secret } = body as Record<string, unknown>;
+    const { secret } = body;
     if (typeof secret !== "string" || !secret.trim()) {
       throw errors.badRequest(
         "secret",
@@ -58,10 +68,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
+    if (secret.trim().length > 256) {
+      throw errors.badRequest(
+        "secret",
+        "secret must be 256 characters or fewer"
+      );
+    }
+
     const configuredSecret = locals.runtime.env.ADMIN_SECRET;
     await verifyAdminSecret(secret.trim(), configuredSecret);
 
-    const sessionValue = await createSessionValue(configuredSecret as string);
+    const sessionValue = await createAdminSession(db);
 
     log.emit({ status: 200 });
 

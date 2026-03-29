@@ -1,6 +1,8 @@
+import type { Database } from "./db";
 import { errors } from "./evlog";
 
 export const ADMIN_SESSION_COOKIE = "__Host-twitmarks-admin";
+export const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24;
 
 const SESSION_COOKIE_SUFFIX = "Path=/; HttpOnly; Secure; SameSite=Strict";
 
@@ -73,48 +75,75 @@ export async function verifyAdminSecret(
   }
 }
 
-export async function createSessionValue(
-  configuredSecret: string
-): Promise<string> {
-  return await sha256Hex(configuredSecret);
+function nowInSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+export async function createAdminSession(db: Database): Promise<string> {
+  const token = crypto.randomUUID();
+  const expiresAt = nowInSeconds() + ADMIN_SESSION_TTL_SECONDS;
+
+  await db
+    .prepare(
+      "INSERT INTO admin_sessions (token_hash, expires_at, created_at) VALUES (?, ?, ?)"
+    )
+    .bind(await sha256Hex(token), expiresAt, nowInSeconds())
+    .run();
+
+  return token;
 }
 
 export async function requireAdminSession(
   request: Request,
-  configuredSecret?: string
+  db: Database
 ): Promise<void> {
-  if (!configuredSecret) {
-    throw errors.internal(
-      "Internal server error",
-      new Error("ADMIN_SECRET missing")
-    );
-  }
-
-  const sessionValue = getCookieValue(request, ADMIN_SESSION_COOKIE);
-  if (!sessionValue) {
+  const token = getCookieValue(request, ADMIN_SESSION_COOKIE);
+  if (!token) {
     throw errors.unauthorized("Missing admin session");
   }
 
-  const expected = await createSessionValue(configuredSecret);
-  if (!timingSafeEqual(sessionValue, expected)) {
+  const session = await db
+    .prepare(
+      "SELECT token_hash FROM admin_sessions WHERE token_hash = ? AND expires_at > ?"
+    )
+    .bind(await sha256Hex(token), nowInSeconds())
+    .first();
+
+  if (!session) {
     throw errors.unauthorized("Invalid admin session");
   }
 }
 
 export async function hasAdminSession(
   request: Request,
-  configuredSecret?: string
+  db: Database
 ): Promise<boolean> {
   try {
-    await requireAdminSession(request, configuredSecret);
+    await requireAdminSession(request, db);
     return true;
   } catch {
     return false;
   }
 }
 
+export async function revokeAdminSession(
+  request: Request,
+  db: Database
+): Promise<void> {
+  const token = getCookieValue(request, ADMIN_SESSION_COOKIE);
+
+  if (!token) {
+    return;
+  }
+
+  await db
+    .prepare("DELETE FROM admin_sessions WHERE token_hash = ?")
+    .bind(await sha256Hex(token))
+    .run();
+}
+
 export function buildSetCookie(value: string): string {
-  return `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(value)}; ${SESSION_COOKIE_SUFFIX}`;
+  return `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(value)}; ${SESSION_COOKIE_SUFFIX}; Max-Age=${ADMIN_SESSION_TTL_SECONDS}`;
 }
 
 export function buildClearCookie(): string {

@@ -9,7 +9,7 @@ interface AddTweetModalProps {
   error?: string | null;
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (embedHtml: string) => Promise<void> | void;
+  onSubmit: (tweetUrl: string) => Promise<void> | void;
 }
 
 export function AddTweetModal({
@@ -18,19 +18,19 @@ export function AddTweetModal({
   onClose,
   onSubmit,
 }: AddTweetModalProps) {
-  const [embedHtml, setEmbedHtml] = useState("");
+  const [tweetUrl, setTweetUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!embedHtml.trim() || isSubmitting) {
+    if (!tweetUrl.trim() || isSubmitting) {
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await onSubmit(embedHtml.trim());
-      setEmbedHtml("");
+      await onSubmit(tweetUrl.trim());
+      setTweetUrl("");
     } catch {
       // The parent surfaces submission errors; keep the current values for retry.
     } finally {
@@ -42,7 +42,7 @@ export function AddTweetModal({
     if (isSubmitting) {
       return;
     }
-    setEmbedHtml("");
+    setTweetUrl("");
     onClose();
   };
 
@@ -72,7 +72,7 @@ export function AddTweetModal({
                 className="font-display font-semibold text-xl dark:text-zinc-50"
                 id="add-tweet-modal-title"
               >
-                Add Tweet Embed
+                Add Tweet URL
               </h2>
               <button
                 aria-label="Close modal"
@@ -100,11 +100,11 @@ export function AddTweetModal({
                   className="font-medium text-sm text-zinc-700 dark:text-zinc-300"
                   htmlFor="embed-html"
                 >
-                  Twitter Embed Code
+                  Tweet URL
                 </label>
                 <div className="relative">
                   <textarea
-                    aria-label="Twitter Embed Code"
+                    aria-label="Tweet URL"
                     className={cn(
                       "min-h-[160px] w-full rounded-2xl border bg-white py-4 pr-12 pl-4 font-mono text-sm transition-all",
                       "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
@@ -115,20 +115,20 @@ export function AddTweetModal({
                     )}
                     disabled={isSubmitting}
                     id="embed-html"
-                    onChange={(e) => setEmbedHtml(e.target.value)}
-                    placeholder="Paste Twitter embed code here..."
+                    onChange={(e) => setTweetUrl(e.target.value)}
+                    placeholder="Paste an https://x.com/.../status/... URL here"
                     required
-                    value={embedHtml}
+                    value={tweetUrl}
                   />
                   <AnimatePresence>
-                    {embedHtml && !isSubmitting && (
+                    {tweetUrl && !isSubmitting && (
                       <motion.button
                         animate={{ opacity: 1, scale: 1 }}
-                        aria-label="Clear embed code"
+                        aria-label="Clear tweet URL"
                         className="absolute top-4 right-4 flex items-center text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-200"
                         exit={{ opacity: 0, scale: 0.95 }}
                         initial={{ opacity: 0, scale: 0.95 }}
-                        onClick={() => setEmbedHtml("")}
+                        onClick={() => setTweetUrl("")}
                         type="button"
                       >
                         <XIcon
@@ -141,8 +141,8 @@ export function AddTweetModal({
                   </AnimatePresence>
                 </div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Paste the HTML embed code from Twitter&apos;s &quot;Embed
-                  Tweet&quot; option.
+                  Paste a public tweet URL from X or Twitter. Raw embed HTML is
+                  no longer accepted.
                 </p>
               </div>
 
@@ -162,7 +162,7 @@ export function AddTweetModal({
                       ? "cursor-not-allowed bg-zinc-400 text-white"
                       : "bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200"
                   )}
-                  disabled={isSubmitting || !embedHtml.trim()}
+                  disabled={isSubmitting || !tweetUrl.trim()}
                   type="submit"
                 >
                   {isSubmitting ? (
