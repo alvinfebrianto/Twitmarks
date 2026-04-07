@@ -1,5 +1,5 @@
 import type { Tweet } from "react-tweet/api";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { enrichNoteTweet } from "./note-tweet";
 
 function makeTweet(overrides: Partial<Tweet> = {}): Tweet {

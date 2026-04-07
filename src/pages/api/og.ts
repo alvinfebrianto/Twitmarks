@@ -3,7 +3,7 @@ import { createWorkersLogger } from "evlog/workers";
 import { getDbOrThrow } from "../../lib/db";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
 import { enforceRateLimit } from "../../lib/rate-limit";
-import { ensureDatabaseSchema } from "../../lib/tweets-schema";
+import { ensureRateLimitsSchema } from "../../lib/tweets-schema";
 
 export const prerender = false;
 
@@ -12,6 +12,19 @@ const HTML_CONTENT_TYPE_RE = /^(text\/html|application\/xhtml\+xml)\b/i;
 const WWW_RE = /^www\./;
 const CONTENT_RE = /\bcontent\s*=\s*(["'])([^<>]*?)\1/i;
 const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+const CACHE_CONTROL_HEADER = "public, max-age=86400, s-maxage=86400";
+
+function getEdgeCache() {
+  if (typeof caches === "undefined") {
+    return null;
+  }
+
+  return (caches as CacheStorage & { default?: Cache }).default ?? null;
+}
+
+function buildCacheKey(request: Request) {
+  return new Request(request.url, { method: "GET" });
+}
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -309,8 +322,20 @@ export const GET: APIRoute = async ({ url, request, locals }) => {
   log.set({ og: { domain: targetUrl.hostname.replace(WWW_RE, "") } });
 
   try {
+    const cache = getEdgeCache();
+    const cacheKey = buildCacheKey(request);
+    const cached = cache ? await cache.match(cacheKey) : null;
+
+    if (cached) {
+      log.set({
+        og: { cached: true, domain: targetUrl.hostname.replace(WWW_RE, "") },
+      });
+      log.emit({ status: 200 });
+      return cached;
+    }
+
     const db = getDbOrThrow(locals);
-    await ensureDatabaseSchema(db);
+    await ensureRateLimitsSchema(db);
     await enforceRateLimit(db, request, {
       limit: 30,
       scope: "og",
@@ -321,6 +346,7 @@ export const GET: APIRoute = async ({ url, request, locals }) => {
 
     log.set({
       og: {
+        cached: false,
         domain: payload.domain,
         hasImage: !!payload.image,
         hasTitle: !!payload.title,
@@ -328,13 +354,23 @@ export const GET: APIRoute = async ({ url, request, locals }) => {
     });
     log.emit({ status: 200 });
 
-    return new Response(JSON.stringify(payload), {
+    const response = new Response(JSON.stringify(payload), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=86400",
+        "Cache-Control": CACHE_CONTROL_HEADER,
       },
     });
+
+    if (cache) {
+      const write = cache.put(cacheKey, response.clone());
+      locals.runtime.ctx?.waitUntil?.(write);
+      if (!locals.runtime.ctx?.waitUntil) {
+        await write;
+      }
+    }
+
+    return response;
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to fetch OG metadata");
     const status = getPublicErrorStatus(evlogError.status);

@@ -7,8 +7,21 @@ import { buildSyndicationUrl } from "../../../lib/syndication";
 export const prerender = false;
 
 const TWEET_ID_RE = /^\d{1,20}$/;
+const CACHE_CONTROL_HEADER = "public, max-age=3600, s-maxage=3600";
 
-export const GET: APIRoute = async ({ params, request }) => {
+function getEdgeCache() {
+  if (typeof caches === "undefined") {
+    return null;
+  }
+
+  return (caches as CacheStorage & { default?: Cache }).default ?? null;
+}
+
+function buildCacheKey(request: Request) {
+  return new Request(request.url, { method: "GET" });
+}
+
+export const GET: APIRoute = async ({ params, request, locals }) => {
   const log = createWorkersLogger(request);
   const id = params.id;
 
@@ -23,6 +36,16 @@ export const GET: APIRoute = async ({ params, request }) => {
   const url = buildSyndicationUrl(id);
 
   try {
+    const cache = getEdgeCache();
+    const cacheKey = buildCacheKey(request);
+    const cached = cache ? await cache.match(cacheKey) : null;
+
+    if (cached) {
+      log.set({ tweet: { cached: true, found: true, id } });
+      log.emit({ status: 200 });
+      return cached;
+    }
+
     const res = await fetch(url.toString(), {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(5000),
@@ -51,13 +74,23 @@ export const GET: APIRoute = async ({ params, request }) => {
     log.set({ tweet: { found: true, noteTweetEnriched: enriched !== data } });
     log.emit({ status: 200 });
 
-    return new Response(JSON.stringify({ data: enriched }), {
+    const response = new Response(JSON.stringify({ data: enriched }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": CACHE_CONTROL_HEADER,
       },
     });
+
+    if (cache) {
+      const write = cache.put(cacheKey, response.clone());
+      locals.runtime.ctx?.waitUntil?.(write);
+      if (!locals.runtime.ctx?.waitUntil) {
+        await write;
+      }
+    }
+
+    return response;
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to fetch tweet data");
     log.error(evlogError);

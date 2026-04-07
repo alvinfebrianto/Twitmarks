@@ -483,6 +483,53 @@ export const CustomEmbeddedTweet = ({
 
 const LAZY_LOAD_MARGIN = "800px 0px";
 
+const FetchedTweetContent = ({
+  nearViewport,
+  onOpenImageViewer,
+  tweetId,
+}: {
+  nearViewport: boolean;
+  onOpenImageViewer: (photos: TweetPhoto[], index?: number) => void;
+  tweetId: string | null;
+}) => {
+  const apiUrl = tweetId ? `/api/tweet/${tweetId}` : undefined;
+  const {
+    data: tweetData,
+    error,
+    isLoading,
+  } = useTweet(undefined, nearViewport ? apiUrl : undefined);
+
+  const handleInlineImageClick = useCallback(
+    (photos: TweetPhoto[], index: number) => {
+      onOpenImageViewer(photos, index);
+    },
+    [onOpenImageViewer]
+  );
+
+  if (!nearViewport) {
+    return <TweetSkeleton />;
+  }
+
+  if (!tweetId) {
+    return <TweetNotFound />;
+  }
+
+  if (isLoading) {
+    return <TweetSkeleton />;
+  }
+
+  if (error || !tweetData) {
+    return <TweetNotFound />;
+  }
+
+  return (
+    <CustomEmbeddedTweet
+      onImageClick={handleInlineImageClick}
+      tweet={tweetData}
+    />
+  );
+};
+
 function getEmptyStateMessage({
   hasAnyTweets,
   isAdmin,
@@ -537,15 +584,8 @@ const TweetEmbed = ({
     [tweet.embed_html]
   );
 
-  const apiUrl = tweetId ? `/api/tweet/${tweetId}` : undefined;
-  const {
-    data: tweetData,
-    error,
-    isLoading,
-  } = useTweet(undefined, nearViewport ? apiUrl : undefined);
-
   useEffect(() => {
-    if (nearViewport || !cardRef.current) {
+    if (tweet.tweet_data || nearViewport || !cardRef.current) {
       return;
     }
 
@@ -561,35 +601,7 @@ const TweetEmbed = ({
 
     observer.observe(cardRef.current);
     return () => observer.disconnect();
-  }, [nearViewport]);
-
-  const handleInlineImageClick = useCallback(
-    (photos: TweetPhoto[], index: number) => {
-      onOpenImageViewer(photos, index);
-    },
-    [onOpenImageViewer]
-  );
-
-  const renderTweetContent = () => {
-    if (!nearViewport) {
-      return <TweetSkeleton />;
-    }
-    if (!tweetId) {
-      return <TweetNotFound />;
-    }
-    if (isLoading) {
-      return <TweetSkeleton />;
-    }
-    if (error || !tweetData) {
-      return <TweetNotFound />;
-    }
-    return (
-      <CustomEmbeddedTweet
-        onImageClick={handleInlineImageClick}
-        tweet={tweetData}
-      />
-    );
-  };
+  }, [nearViewport, tweet.tweet_data]);
 
   return (
     <motion.div
@@ -605,7 +617,18 @@ const TweetEmbed = ({
         className="[&>div]:!m-0 min-w-0"
         data-theme={isDark ? "dark" : "light"}
       >
-        {renderTweetContent()}
+        {tweet.tweet_data ? (
+          <CustomEmbeddedTweet
+            onImageClick={onOpenImageViewer}
+            tweet={tweet.tweet_data}
+          />
+        ) : (
+          <FetchedTweetContent
+            nearViewport={nearViewport}
+            onOpenImageViewer={onOpenImageViewer}
+            tweetId={tweetId}
+          />
+        )}
       </div>
 
       {isAdmin && isSelectionMode && (
@@ -737,11 +760,7 @@ export default function App({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const cols = useResponsiveColumns();
-  const [isDark, setIsDark] = useState(
-    () =>
-      typeof document !== "undefined" &&
-      document.documentElement.classList.contains("dark")
-  );
+  const [isDark, setIsDark] = useState(false);
 
   const { isAdmin, unlockAdmin, lockAdmin, expireAdmin } =
     useAdminSession(initialIsAdmin);
@@ -813,9 +832,13 @@ export default function App({
   }, [loadTweets]);
 
   useEffect(() => {
-    const observer = new MutationObserver(() => {
+    const syncTheme = () => {
       setIsDark(document.documentElement.classList.contains("dark"));
-    });
+    };
+
+    syncTheme();
+
+    const observer = new MutationObserver(syncTheme);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],

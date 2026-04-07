@@ -9,7 +9,10 @@ import { getDbOrThrow } from "../../../lib/db";
 import { ensureEvlogError, errors, errorToObject } from "../../../lib/evlog";
 import { enforceRateLimit } from "../../../lib/rate-limit";
 import { readJsonObject } from "../../../lib/request-body";
-import { ensureDatabaseSchema } from "../../../lib/tweets-schema";
+import {
+  ensureAdminSessionsSchema,
+  ensureRateLimitsSchema,
+} from "../../../lib/tweets-schema";
 
 export const prerender = false;
 const MAX_LOGIN_BODY_BYTES = 1024;
@@ -37,7 +40,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     log.set({ api: { route: "POST /api/admin/login" } });
 
     const db = getDbOrThrow(locals);
-    await ensureDatabaseSchema(db);
+    await ensureAdminSessionsSchema(db);
+    await ensureRateLimitsSchema(db);
     await enforceRateLimit(db, request, {
       limit: 5,
       scope: "admin-login",

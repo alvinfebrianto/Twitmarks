@@ -1,6 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import {
   afterEach,
   beforeAll,
@@ -35,6 +37,7 @@ vi.mock("react-tweet", () => ({
   useTweet: vi.fn(() => ({ isLoading: false, data: null, error: null })),
 }));
 
+const reactTweet = await import("react-tweet");
 const { default: App } = await import("./home-app");
 
 beforeAll(() => {
@@ -46,6 +49,7 @@ afterEach(() => {
 });
 
 const DELETE_SELECTED_RE = /Delete .+ selected/;
+const HYDRATION_MISMATCH_RE = "A tree hydrated but some attributes";
 
 describe("HomeApp types", () => {
   it("DbTweet matches the API response shape", () => {
@@ -138,6 +142,47 @@ const MOCK_TWEETS: DbTweet[] = [
   },
 ];
 
+const PREFETCHED_TWEET: DbTweet = {
+  id: 3,
+  embed_html: "https://x.com/tester/status/1000000000000000000",
+  created_at: "2025-03-03T00:00:00Z",
+  sort_order: 3,
+  tweet_data: {
+    __typename: "Tweet",
+    id_str: "1000000000000000000",
+    lang: "en",
+    created_at: "2025-03-03T00:00:00Z",
+    display_text_range: [0, 22],
+    text: "Stored tweet from D1",
+    entities: {
+      hashtags: [],
+      urls: [],
+      user_mentions: [],
+      symbols: [],
+    },
+    user: {
+      id_str: "1",
+      name: "Tester",
+      profile_image_url_https: "https://example.com/avatar.jpg",
+      profile_image_shape: "Circle",
+      screen_name: "tester",
+      verified: false,
+      is_blue_verified: false,
+    },
+    edit_control: {
+      edit_tweet_ids: ["1000000000000000000"],
+      editable_until_msecs: "0",
+      is_edit_eligible: false,
+      edits_remaining: "0",
+    },
+    isEdited: false,
+    isStaleEdit: false,
+    favorite_count: 0,
+    conversation_count: 0,
+    news_action_type: "conversation",
+  },
+};
+
 describe("admin-gated UI elements", () => {
   beforeEach(() => {
     sessionStorage.clear();
@@ -191,6 +236,80 @@ describe("admin-gated UI elements", () => {
     expect(
       screen.getByText("Add your first tweet embed using the button above.")
     ).toBeInTheDocument();
+  });
+});
+
+describe("prefetched tweet rendering", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.mocked(reactTweet.useTweet).mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("renders stored tweet data without calling useTweet", () => {
+    render(<App initialTweets={[PREFETCHED_TWEET]} />);
+
+    expect(screen.getByText("Stored tweet from D1")).toBeInTheDocument();
+    expect(vi.mocked(reactTweet.useTweet)).not.toHaveBeenCalled();
+  });
+});
+
+describe("theme hydration", () => {
+  afterEach(() => {
+    document.documentElement.classList.remove("dark");
+  });
+
+  it("does not log hydration mismatch warnings when dark mode is active", async () => {
+    const originalDocument = globalThis.document;
+    vi.stubGlobal("document", undefined);
+
+    let ssrMarkup = "";
+    try {
+      ssrMarkup = renderToString(<App initialTweets={[PREFETCHED_TWEET]} />);
+    } finally {
+      vi.stubGlobal("document", originalDocument);
+    }
+
+    expect(ssrMarkup).toContain('data-theme="light"');
+
+    localStorage.setItem("theme", "dark");
+    document.documentElement.classList.add("dark");
+    const container = document.createElement("div");
+    container.innerHTML = ssrMarkup;
+    document.body.append(container);
+
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const root = hydrateRoot(
+      container,
+      <App initialTweets={[PREFETCHED_TWEET]} />
+    );
+
+    try {
+      await waitFor(() => {
+        expect(container.querySelector("[data-theme]")).toHaveAttribute(
+          "data-theme",
+          "dark"
+        );
+      });
+
+      const hydrationWarnings = consoleErrorSpy.mock.calls.filter(
+        ([firstArg]) =>
+          typeof firstArg === "string" &&
+          firstArg.includes(HYDRATION_MISMATCH_RE)
+      );
+      expect(hydrationWarnings).toHaveLength(0);
+    } finally {
+      root.unmount();
+      consoleErrorSpy.mockRestore();
+      container.remove();
+      localStorage.removeItem("theme");
+    }
   });
 });
 

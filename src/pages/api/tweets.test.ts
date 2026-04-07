@@ -8,6 +8,41 @@ import type { Database } from "../../lib/db";
 import { createLocals, createMockDB } from "../../test/mock-db";
 import { DELETE, GET, PATCH, POST } from "./tweets";
 
+const STORED_TWEET_DATA = {
+  __typename: "Tweet",
+  id_str: "2035915492200677484",
+  lang: "en",
+  created_at: "2026-03-26T00:00:00.000Z",
+  display_text_range: [0, 18],
+  text: "Hello from Twitter",
+  entities: {
+    hashtags: [],
+    urls: [],
+    user_mentions: [],
+    symbols: [],
+  },
+  user: {
+    id_str: "1",
+    name: "Test",
+    profile_image_url_https: "https://example.com/avatar.jpg",
+    profile_image_shape: "Circle",
+    screen_name: "test",
+    verified: false,
+    is_blue_verified: false,
+  },
+  edit_control: {
+    edit_tweet_ids: ["2035915492200677484"],
+    editable_until_msecs: "0",
+    is_edit_eligible: false,
+    edits_remaining: "0",
+  },
+  isEdited: false,
+  isStaleEdit: false,
+  favorite_count: 0,
+  conversation_count: 0,
+  news_action_type: "conversation",
+} as const;
+
 beforeEach(() => {
   vi.useRealTimers();
 });
@@ -39,18 +74,12 @@ function createGetRequest() {
 
 describe("POST /api/tweets", () => {
   it("stores a canonical tweet URL and returns 201", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        headers: new Headers({ "content-type": "application/json" }),
-        json: () =>
-          Promise.resolve({
-            text: "Hello from Twitter",
-            user: { name: "Test", screen_name: "test" },
-          }),
-      })
-    );
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve(STORED_TWEET_DATA),
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const db = createMockDB();
     const locals = createLocals({ db });
@@ -71,9 +100,11 @@ describe("POST /api/tweets", () => {
       "https://x.com/brfootball/status/2035915492200677484"
     );
     expect(json.search_text).toBe("Hello from Twitter Test @test");
+    expect(json.tweet_data).toMatchObject(STORED_TWEET_DATA);
     expect(db.prepare).toHaveBeenCalledWith(
-      "INSERT INTO tweets (embed_html, search_text, sort_order) VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
+      "INSERT INTO tweets (embed_html, search_text, tweet_json, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
     );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns 401 when no session cookie is provided", async () => {
@@ -255,7 +286,11 @@ describe("POST /api/tweets", () => {
 describe("GET /api/tweets", () => {
   it("returns tweets from the database", async () => {
     const tweets = [
-      { id: 1, embed_html: "https://x.com/user/status/1" },
+      {
+        id: 1,
+        embed_html: "https://x.com/user/status/1",
+        tweet_json: JSON.stringify(STORED_TWEET_DATA),
+      },
       { id: 2, embed_html: "https://x.com/user/status/2" },
     ];
     const db = createMockDB({ results: tweets });
@@ -267,15 +302,45 @@ describe("GET /api/tweets", () => {
     } as never);
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(tweets);
+    await expect(response.json()).resolves.toEqual([
+      {
+        id: 1,
+        embed_html: "https://x.com/user/status/1",
+        tweet_data: STORED_TWEET_DATA,
+      },
+      { id: 2, embed_html: "https://x.com/user/status/2", tweet_data: null },
+    ]);
   });
 
-  it("migrates legacy databases missing search_text before selecting", async () => {
+  it("does not bootstrap admin or rate-limit tables on public reads", async () => {
+    const tweets = [{ id: 1, embed_html: "https://x.com/user/status/1" }];
+    const db = createMockDB({
+      missingTables: ["admin_sessions", "rate_limits"],
+      results: tweets,
+    });
+    const locals = createLocals({ db });
+
+    const response = await GET({
+      request: createGetRequest(),
+      locals,
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(db.prepare).not.toHaveBeenCalledWith(
+      expect.stringContaining("CREATE TABLE IF NOT EXISTS admin_sessions")
+    );
+    expect(db.prepare).not.toHaveBeenCalledWith(
+      expect.stringContaining("CREATE TABLE IF NOT EXISTS rate_limits")
+    );
+  });
+
+  it("migrates legacy databases missing tweet read columns before selecting", async () => {
     const tweets = [
       {
         id: 1,
         embed_html: "https://x.com/user/status/123",
         search_text: "hello world",
+        tweet_json: JSON.stringify(STORED_TWEET_DATA),
         sort_order: 1,
         created_at: "2026-03-26T00:00:00.000Z",
       },
@@ -283,6 +348,7 @@ describe("GET /api/tweets", () => {
 
     const db = createMockDB({ results: tweets });
     db.state.setHasSearchTextColumn(false);
+    db.state.setHasTweetJsonColumn(false);
     const locals = createLocals({ db });
 
     const response = await GET({
@@ -295,7 +361,19 @@ describe("GET /api/tweets", () => {
     expect(db.prepare).toHaveBeenCalledWith(
       "ALTER TABLE tweets ADD COLUMN search_text TEXT"
     );
-    expect(await response.json()).toEqual(tweets);
+    expect(db.prepare).toHaveBeenCalledWith(
+      "ALTER TABLE tweets ADD COLUMN tweet_json TEXT"
+    );
+    await expect(response.json()).resolves.toEqual([
+      {
+        id: 1,
+        embed_html: "https://x.com/user/status/123",
+        search_text: "hello world",
+        tweet_data: STORED_TWEET_DATA,
+        sort_order: 1,
+        created_at: "2026-03-26T00:00:00.000Z",
+      },
+    ]);
   });
 
   it("queries with sort_order ordering", async () => {
@@ -305,7 +383,7 @@ describe("GET /api/tweets", () => {
     await GET({ request: createGetRequest(), locals } as never);
 
     expect(db.prepare).toHaveBeenCalledWith(
-      "SELECT id, embed_html, search_text, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
+      "SELECT id, embed_html, search_text, tweet_json, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
     );
   });
 

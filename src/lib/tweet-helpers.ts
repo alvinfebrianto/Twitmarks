@@ -1,9 +1,12 @@
+import type { Tweet } from "react-tweet/api";
+
 export interface DbTweet {
   created_at: string;
   embed_html: string;
   id: number;
   search_text?: string | null;
   sort_order: number;
+  tweet_data?: Tweet | null;
 }
 
 export interface UiTweet extends DbTweet {
@@ -28,12 +31,20 @@ function extractTextContent(html: string): string {
 }
 
 export function normalizeTweet(tweet: DbTweet): UiTweet {
+  let searchBlob = extractTextContent(tweet.embed_html);
+
+  if (tweet.tweet_data?.text) {
+    searchBlob = tweet.tweet_data.text.toLowerCase();
+  }
+
+  if (tweet.search_text) {
+    searchBlob = tweet.search_text.toLowerCase();
+  }
+
   return {
     ...tweet,
     createdAtMs: new Date(tweet.created_at).getTime(),
-    searchBlob: tweet.search_text
-      ? tweet.search_text.toLowerCase()
-      : extractTextContent(tweet.embed_html),
+    searchBlob,
   };
 }
 
