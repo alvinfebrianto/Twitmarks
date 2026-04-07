@@ -3,9 +3,16 @@ import { createWorkersLogger } from "evlog/workers";
 import { requireAdminSession } from "../../lib/admin-session";
 import { getDbOrThrow } from "../../lib/db";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
-import { fetchTweetText } from "../../lib/fetch-tweet-text";
 import { readJsonObject } from "../../lib/request-body";
-import { ensureDatabaseSchema } from "../../lib/tweets-schema";
+import {
+  fetchTweetSnapshot,
+  parseStoredTweetData,
+  serializeStoredTweetData,
+} from "../../lib/tweet-snapshot";
+import {
+  ensureAdminSessionsSchema,
+  ensureTweetsSearchTextColumn,
+} from "../../lib/tweets-schema";
 
 export const prerender = false;
 
@@ -91,6 +98,17 @@ function parseBareTweetUrl(
   };
 }
 
+function mapTweetRow(row: Record<string, unknown>): Record<string, unknown> & {
+  tweet_data: ReturnType<typeof parseStoredTweetData>;
+} {
+  const { tweet_json: tweetJson, ...rest } = row;
+
+  return {
+    ...rest,
+    tweet_data: parseStoredTweetData(tweetJson),
+  };
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   const log = createWorkersLogger(request);
   try {
@@ -99,7 +117,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
     const db = getDbOrThrow(locals);
-    await ensureDatabaseSchema(db);
+    await ensureAdminSessionsSchema(db);
+    await ensureTweetsSearchTextColumn(db);
     await requireAdminSession(request, db);
     requireJsonContentType(request);
 
@@ -137,13 +156,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const storedHtml = bareTweet.canonicalUrl;
-    const searchText = await fetchTweetText(bareTweet.tweetId);
+    const { searchText, tweetData } = await fetchTweetSnapshot(
+      bareTweet.tweetId
+    );
 
     const result = await db
       .prepare(
-        "INSERT INTO tweets (embed_html, search_text, sort_order) VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
+        "INSERT INTO tweets (embed_html, search_text, tweet_json, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
       )
-      .bind(storedHtml, searchText)
+      .bind(storedHtml, searchText, serializeStoredTweetData(tweetData))
       .run();
 
     const insertedId = result.meta?.last_row_id;
@@ -166,6 +187,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         id: insertedId,
         embed_html: storedHtml,
         search_text: searchText,
+        tweet_data: tweetData,
         sort_order: sortOrder,
         created_at: createdAt,
         success: true,
@@ -186,19 +208,21 @@ export const GET: APIRoute = async ({ request, locals }) => {
     log.set({ api: { route: "GET /api/tweets" } });
 
     const db = getDbOrThrow(locals);
-    await ensureDatabaseSchema(db);
+    await ensureTweetsSearchTextColumn(db);
 
     const result = await db
       .prepare(
-        "SELECT id, embed_html, search_text, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
+        "SELECT id, embed_html, search_text, tweet_json, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC"
       )
-      .all();
+      .all<Record<string, unknown>>();
 
-    const count = result.results?.length ?? 0;
+    const tweets = (result.results ?? []).map(mapTweetRow);
+
+    const count = tweets.length;
     log.set({ tweets: { count } });
     log.emit({ status: 200 });
 
-    return new Response(JSON.stringify(result.results ?? []), {
+    return new Response(JSON.stringify(tweets), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
@@ -219,7 +243,7 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     log.set({ api: { route: "DELETE /api/tweets" } });
 
     const db = getDbOrThrow(locals);
-    await ensureDatabaseSchema(db);
+    await ensureAdminSessionsSchema(db);
     await requireAdminSession(request, db);
     requireJsonContentType(request);
 
@@ -253,7 +277,7 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     log.set({ api: { route: "PATCH /api/tweets" } });
 
     const db = getDbOrThrow(locals);
-    await ensureDatabaseSchema(db);
+    await ensureAdminSessionsSchema(db);
     await requireAdminSession(request, db);
     requireJsonContentType(request);
 

@@ -1,7 +1,7 @@
 import type React from "react";
 
 type IconProps = React.SVGProps<SVGSVGElement> & {
-  weight?: "regular" | "bold" | "fill";
+  weight?: "regular" | "bold";
 };
 
 const paths = {

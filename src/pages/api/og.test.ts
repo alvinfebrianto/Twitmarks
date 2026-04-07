@@ -14,6 +14,15 @@ function createContext(query: string, db = createMockDB()) {
   };
 }
 
+function createCacheStub(response: Response | null) {
+  return {
+    default: {
+      match: vi.fn().mockResolvedValue(response),
+      put: vi.fn().mockResolvedValue(undefined),
+    },
+  };
+}
+
 function mockDnsAndFetch(options: {
   dns?: Record<string, string[]>;
   responses?: Record<string, Response>;
@@ -82,6 +91,43 @@ describe("GET /api/og", () => {
     expect(response.status).toBe(400);
   });
 
+  it("returns a cached OG response without hitting DNS, D1, or origin fetches", async () => {
+    const cachedResponse = new Response(
+      JSON.stringify({
+        description: "cached description",
+        domain: "example.com",
+        image: null,
+        title: "Cached",
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, max-age=86400, s-maxage=86400",
+        },
+      }
+    );
+
+    vi.stubGlobal("caches", createCacheStub(cachedResponse));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("unexpected")))
+    );
+
+    const db = createMockDB();
+    const response = await GET(
+      createContext("?url=https://example.com/page", db) as never
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      domain: "example.com",
+      title: "Cached",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(db.prepare).not.toHaveBeenCalled();
+  });
+
   it("fetches OG metadata for a public hostname", async () => {
     mockDnsAndFetch({
       responses: {
@@ -105,6 +151,28 @@ describe("GET /api/og", () => {
       image: "https://example.com/cover.png",
       title: "Test",
     });
+  });
+
+  it("rate limits uncached OG requests in a single D1 batch", async () => {
+    mockDnsAndFetch({
+      responses: {
+        "https://example.com/page": new Response(
+          '<meta property="og:title" content="Test">',
+          {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          }
+        ),
+      },
+    });
+
+    const db = createMockDB();
+    const response = await GET(
+      createContext("?url=https://example.com/page", db) as never
+    );
+
+    expect(response.status).toBe(200);
+    expect(db.batch).toHaveBeenCalledTimes(1);
   });
 
   it("uses manual redirect handling and follows safe redirects", async () => {

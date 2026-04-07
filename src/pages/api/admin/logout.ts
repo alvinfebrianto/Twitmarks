@@ -6,7 +6,7 @@ import {
 } from "../../../lib/admin-session";
 import { getDbOrThrow } from "../../../lib/db";
 import { ensureEvlogError, errorToObject } from "../../../lib/evlog";
-import { ensureDatabaseSchema } from "../../../lib/tweets-schema";
+import { ensureAdminSessionsSchema } from "../../../lib/tweets-schema";
 
 export const prerender = false;
 
@@ -32,7 +32,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     log.set({ api: { route: "POST /api/admin/logout" } });
 
     const db = getDbOrThrow(locals);
-    await ensureDatabaseSchema(db);
+    await ensureAdminSessionsSchema(db);
     await revokeAdminSession(request, db);
     log.emit({ status: 200 });
 

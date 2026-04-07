@@ -116,7 +116,7 @@ export function useMotionValue(initial: number) {
     set: (v: number) => void;
     on: () => () => void;
     subscribe: () => () => void;
-  }>();
+  } | null>(null);
   if (!instanceRef.current) {
     instanceRef.current = {
       get: () => valueRef.current,

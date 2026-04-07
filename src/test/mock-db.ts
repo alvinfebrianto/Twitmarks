@@ -21,6 +21,15 @@ interface RateLimitRow {
 
 type MockTableName = "admin_sessions" | "rate_limits";
 
+interface MockStatement {
+  __args: unknown[];
+  __sql: string;
+  all: ReturnType<typeof vi.fn>;
+  bind: (...boundArgs: unknown[]) => MockStatement;
+  first: ReturnType<typeof vi.fn>;
+  run: ReturnType<typeof vi.fn>;
+}
+
 function handleAdminSessionRun(
   args: unknown[],
   sessions: Map<string, SessionRow>
@@ -112,6 +121,7 @@ function defaultRunResult(options: MockDbOptions) {
 export function createMockDB(options: MockDbOptions = {}) {
   const firstResults = [...(options.firstResults ?? [])];
   let hasSearchTextColumn = true;
+  let hasTweetJsonColumn = true;
   let hasAdminSessionsTable = !(options.missingTables ?? []).includes(
     "admin_sessions"
   );
@@ -169,6 +179,11 @@ export function createMockDB(options: MockDbOptions = {}) {
       return emptyRunResult();
     }
 
+    if (sql === "ALTER TABLE tweets ADD COLUMN tweet_json TEXT") {
+      hasTweetJsonColumn = true;
+      return emptyRunResult();
+    }
+
     return null;
   }
 
@@ -203,13 +218,39 @@ export function createMockDB(options: MockDbOptions = {}) {
     return null;
   }
 
-  function statement(sql: string, args: unknown[] = []) {
+  function statement(sql: string, args: unknown[] = []): MockStatement {
     return {
+      __args: args,
+      __sql: sql,
       bind: (...boundArgs: unknown[]) => statement(sql, boundArgs),
       run: vi.fn(() => Promise.resolve(handleRun(sql, args))),
       first: vi.fn(() => Promise.resolve(handleFirst(sql, args))),
       all: vi.fn(() => Promise.resolve(handleAll(sql))),
     };
+  }
+
+  function handleBatch(statements: MockStatement[]) {
+    return statements.map((stmt) => {
+      if (stmt.__sql === "PRAGMA table_info(tweets)") {
+        return {
+          meta: { changes: 0, last_row_id: 0 },
+          results: handleAll(stmt.__sql).results,
+        };
+      }
+
+      if (stmt.__sql.startsWith("SELECT ")) {
+        const row = handleFirst(stmt.__sql, stmt.__args);
+        return {
+          meta: { changes: 0, last_row_id: 0 },
+          results: row ? [row] : [],
+        };
+      }
+
+      return {
+        ...handleRun(stmt.__sql, stmt.__args),
+        results: [],
+      };
+    });
   }
 
   function handleRun(sql: string, args: unknown[]) {
@@ -256,9 +297,12 @@ export function createMockDB(options: MockDbOptions = {}) {
   function handleAll(sql: string) {
     if (sql === "PRAGMA table_info(tweets)") {
       return {
-        results: hasSearchTextColumn
-          ? [{ name: "id" }, { name: "embed_html" }, { name: "search_text" }]
-          : [{ name: "id" }, { name: "embed_html" }],
+        results: [
+          { name: "id" },
+          { name: "embed_html" },
+          ...(hasSearchTextColumn ? [{ name: "search_text" }] : []),
+          ...(hasTweetJsonColumn ? [{ name: "tweet_json" }] : []),
+        ],
       };
     }
 
@@ -267,12 +311,17 @@ export function createMockDB(options: MockDbOptions = {}) {
 
   return {
     prepare: vi.fn((sql: string) => statement(sql)),
-    batch: vi.fn().mockResolvedValue([]),
+    batch: vi.fn((statements: MockStatement[]) =>
+      Promise.resolve(handleBatch(statements))
+    ),
     state: {
       sessions,
       rateLimits,
       setHasSearchTextColumn(value: boolean) {
         hasSearchTextColumn = value;
+      },
+      setHasTweetJsonColumn(value: boolean) {
+        hasTweetJsonColumn = value;
       },
       setHasAdminSessionsTable(value: boolean) {
         hasAdminSessionsTable = value;
@@ -285,10 +334,15 @@ export function createMockDB(options: MockDbOptions = {}) {
 }
 
 export function createLocals(
-  overrides: { adminSecret?: string; db?: unknown } = {}
+  overrides: {
+    adminSecret?: string;
+    db?: unknown;
+    ctx?: { waitUntil(promise: Promise<unknown>): void };
+  } = {}
 ) {
   return {
     runtime: {
+      ctx: overrides.ctx,
       env: {
         ADMIN_SECRET: overrides.adminSecret ?? "test-secret",
         ASSETS: {},

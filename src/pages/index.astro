@@ -4,24 +4,35 @@ import { createWorkersLogger } from "evlog/workers";
 import { hasAdminSession } from "../lib/admin-session";
 import { getDbOrThrow } from "../lib/db";
 import { ensureEvlogError } from "../lib/evlog";
-import { ensureDatabaseSchema } from "../lib/tweets-schema";
+import type { DbTweet } from "../lib/tweet-helpers";
+import { parseStoredTweetData } from "../lib/tweet-snapshot";
+import { ensureTweetsSearchTextColumn } from "../lib/tweets-schema";
 import "../styles/global.css";
 
 export const prerender = false;
 
 const log = createWorkersLogger(Astro.request);
 let initialIsAdmin = false;
-let initialTweets: Array<{ id: number; embed_html: string; search_text?: string | null; sort_order: number; created_at: string }> | undefined;
+let initialTweets: DbTweet[] | undefined;
 try {
   const db = getDbOrThrow(Astro.locals);
-  await ensureDatabaseSchema(db);
+  await ensureTweetsSearchTextColumn(db);
   initialIsAdmin = await hasAdminSession(Astro.request, db);
 
   const result = await db
-    .prepare("SELECT id, embed_html, search_text, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC")
-    .all();
-  initialTweets = (result.results ?? []) as NonNullable<typeof initialTweets>;
-  log.set({ page: { route: "/", tweetCount: initialTweets.length } });
+    .prepare("SELECT id, embed_html, search_text, tweet_json, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC")
+    .all<Record<string, unknown>>();
+  const rows: Record<string, unknown>[] = result.results ?? [];
+  const tweets = rows.map((row: Record<string, unknown>) => {
+    const { tweet_json: tweetJson, ...tweet } = row;
+
+    return {
+      ...tweet,
+      tweet_data: parseStoredTweetData(tweetJson),
+    } as DbTweet;
+  });
+  initialTweets = tweets;
+  log.set({ page: { route: "/", tweetCount: tweets.length } });
   log.emit({ status: 200 });
 } catch (error) {
   const evlogError = ensureEvlogError(error, "Failed to load tweets for SSR");

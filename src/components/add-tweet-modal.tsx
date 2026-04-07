@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { cn } from "../lib/utils";
 import { XIcon } from "./icons";
 
@@ -21,7 +21,7 @@ export function AddTweetModal({
   const [tweetUrl, setTweetUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!tweetUrl.trim() || isSubmitting) {
       return;
