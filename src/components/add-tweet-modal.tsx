@@ -141,8 +141,7 @@ export function AddTweetModal({
                   </AnimatePresence>
                 </div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Paste a public tweet URL from X or Twitter. Raw embed HTML is
-                  no longer accepted.
+                  Paste a public tweet URL from X or Twitter.
                 </p>
               </div>
 
