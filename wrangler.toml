@@ -1,8 +1,8 @@
 name = "twitmarks"
-compatibility_date = "2025-02-26"
+compatibility_date = "2026-04-08"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
-main = "dist/_worker.js/index.js"
+main = "./dist/_worker.js/index.js"
 
 [assets]
 binding = "ASSETS"
@@ -14,5 +14,4 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "twitmarks-db"
-# Replace with your actual D1 database ID after running: npm run db:create
 database_id = "8cffd895-a11e-4303-be53-07686c59d23c"

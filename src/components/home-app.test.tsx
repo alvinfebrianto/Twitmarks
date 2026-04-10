@@ -280,7 +280,7 @@ describe("theme hydration", () => {
     document.documentElement.classList.add("dark");
     const container = document.createElement("div");
     container.innerHTML = ssrMarkup;
-    document.body.append(container);
+    document.body.appendChild(container);
 
     const consoleErrorSpy = vi
       .spyOn(console, "error")

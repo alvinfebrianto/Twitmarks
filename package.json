@@ -16,13 +16,14 @@
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "ultracite": "^7.2.4",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "wrangler": "^4.81.0"
   },
   "scripts": {
     "dev": "astro dev",
-    "deploy": "wrangler pages deploy dist",
+    "deploy": "npm run build && wrangler deploy --keep-vars",
     "db:create": "wrangler d1 create twitmarks-db",
-    "db:schema:local": "wrangler d1 execute twitmarks-db --local --persist-to ./.cache/wrangler --file=schema.sql",
+    "db:schema:local": "wrangler d1 execute twitmarks-db --local --persist-to ./.cache/wrangler/v3 --file=schema.sql",
     "db:schema:remote": "wrangler d1 execute twitmarks-db --remote --file=schema.sql",
     "db:schema:all": "npm run db:schema:local && npm run db:schema:remote",
     "db:init": "npm run db:schema:local",
@@ -30,7 +31,9 @@
     "lint:fix": "ultracite fix",
     "check": "astro check",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build": "astro build",
+    "deploy:dry-run": "npm run build && wrangler deploy --dry-run --keep-vars"
   },
   "dependencies": {
     "evlog": "^2.1.0",
