@@ -1,6 +1,9 @@
 import type { Tweet } from "react-tweet/api";
 import { enrichNoteTweet } from "./note-tweet";
-import { buildSyndicationUrl } from "./syndication";
+import {
+  buildSyndicationRequestInit,
+  buildSyndicationUrl,
+} from "./syndication";
 
 export interface TweetSnapshot {
   searchText: string | null;
@@ -49,10 +52,7 @@ export async function fetchTweetSnapshot(
 ): Promise<TweetSnapshot> {
   try {
     const url = buildSyndicationUrl(tweetId);
-    const response = await fetch(url.toString(), {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(5000),
-    });
+    const response = await fetch(url.toString(), buildSyndicationRequestInit());
     const isJson = response.headers
       .get("content-type")
       ?.includes("application/json");

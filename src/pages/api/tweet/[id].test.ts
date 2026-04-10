@@ -48,4 +48,23 @@ describe("GET /api/tweet/[id]", () => {
     });
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it("returns 502 when the upstream rejects the syndication fetch", async () => {
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve({
+        ok: false,
+        status: 403,
+        headers: new Headers({ "content-type": "application/json" }),
+      })
+    );
+
+    const response = await GET({
+      params: { id: "123" },
+      request: new Request("http://localhost/api/tweet/123"),
+      locals: createLocals(),
+    } as never);
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ data: null });
+  });
 });

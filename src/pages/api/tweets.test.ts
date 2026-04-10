@@ -72,6 +72,16 @@ function createGetRequest() {
   return new Request("http://localhost/api/tweets");
 }
 
+function createCacheStub(response: Response | null) {
+  return {
+    default: {
+      delete: vi.fn().mockResolvedValue(true),
+      match: vi.fn().mockResolvedValue(response),
+      put: vi.fn().mockResolvedValue(undefined),
+    },
+  };
+}
+
 describe("POST /api/tweets", () => {
   it("stores a canonical tweet URL and returns 201", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
@@ -93,7 +103,13 @@ describe("POST /api/tweets", () => {
     const response = await POST({ request, locals } as never);
 
     expect(response.status).toBe(201);
-    const json = await response.json();
+    const json = (await response.json()) as {
+      embed_html: string;
+      id: number;
+      search_text: string | null;
+      success: boolean;
+      tweet_data: unknown;
+    };
     expect(json.success).toBe(true);
     expect(json.id).toBe(1);
     expect(json.embed_html).toBe(
@@ -105,6 +121,138 @@ describe("POST /api/tweets", () => {
       "INSERT INTO tweets (embed_html, search_text, tweet_json, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("captures tweet snapshots when the upstream requires a user-agent", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation((_input, init?: RequestInit) => {
+        const headers = new Headers(init?.headers);
+
+        if (!headers.get("user-agent")) {
+          return Promise.resolve({
+            ok: false,
+            status: 400,
+            headers: new Headers({ "content-type": "application/json" }),
+            json: () => Promise.resolve({ error: "missing user-agent" }),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: () => Promise.resolve(STORED_TWEET_DATA),
+        });
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const db = createMockDB();
+    const locals = createLocals({ db });
+    const request = await createPostRequest(
+      { embed_html: "https://x.com/brfootball/status/2035915492200677484" },
+      db as never
+    );
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      search_text: "Hello from Twitter Test @test",
+      tweet_data: STORED_TWEET_DATA,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.anything(),
+      })
+    );
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new Headers(init.headers).get("user-agent")).toContain("Twitmarks");
+  });
+
+  it("invalidates the cached list after inserting a tweet", async () => {
+    const cache = createCacheStub(null);
+    vi.stubGlobal("caches", cache);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(STORED_TWEET_DATA),
+      })
+    );
+
+    const db = createMockDB();
+    const locals = createLocals({ db });
+    const request = await createPostRequest(
+      { embed_html: "https://x.com/brfootball/status/2035915492200677484" },
+      db as never
+    );
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(201);
+    expect(cache.default.delete).toHaveBeenCalledTimes(1);
+    const [cacheKey] = cache.default.delete.mock.calls[0] as [Request];
+    expect(cacheKey.method).toBe("GET");
+    expect(cacheKey.url).toBe("http://localhost/api/tweets");
+  });
+
+  it("repairs an existing degraded row when the same tweet URL is re-added", async () => {
+    const cache = createCacheStub(null);
+    vi.stubGlobal("caches", cache);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(STORED_TWEET_DATA),
+      })
+    );
+
+    const db = createMockDB({
+      firstResults: [
+        {
+          id: 7,
+          sort_order: 4,
+          created_at: "2026-03-27T00:00:00.000Z",
+        },
+      ],
+    });
+    const locals = createLocals({ db });
+    const request = await createPostRequest(
+      {
+        embed_html: "https://x.com/brfootball/status/2035915492200677484?s=20",
+      },
+      db as never
+    );
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      id: 7,
+      embed_html: "https://x.com/brfootball/status/2035915492200677484",
+      search_text: "Hello from Twitter Test @test",
+      tweet_data: STORED_TWEET_DATA,
+      sort_order: 4,
+      created_at: "2026-03-27T00:00:00.000Z",
+      repaired: true,
+      success: true,
+    });
+    expect(db.prepare).toHaveBeenCalledWith(
+      "SELECT id, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets WHERE embed_html = ? AND (tweet_json IS NULL OR trim(tweet_json) = '' OR search_text IS NULL OR trim(search_text) = '') ORDER BY id ASC LIMIT 1"
+    );
+    expect(db.prepare).toHaveBeenCalledWith(
+      "UPDATE tweets SET search_text = ?, tweet_json = ? WHERE id = ?"
+    );
+    expect(db.prepare).not.toHaveBeenCalledWith(
+      "INSERT INTO tweets (embed_html, search_text, tweet_json, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
+    );
+    expect(cache.default.delete).toHaveBeenCalledTimes(1);
   });
 
   it("returns 401 when no session cookie is provided", async () => {
@@ -260,7 +408,7 @@ describe("POST /api/tweets", () => {
     });
   });
 
-  it("accepts a bare tweet URL even when syndication fetch fails", async () => {
+  it("returns 502 without inserting when snapshot capture fails", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockRejectedValue(new Error("network error"))
@@ -275,15 +423,83 @@ describe("POST /api/tweets", () => {
 
     const response = await POST({ request, locals } as never);
 
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(502);
     await expect(response.json()).resolves.toMatchObject({
-      embed_html: "https://x.com/user/status/123456",
-      search_text: null,
+      error: "Internal server error",
+      status: 502,
     });
+    expect(db.prepare).not.toHaveBeenCalledWith(
+      "INSERT INTO tweets (embed_html, search_text, tweet_json, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
+    );
   });
 });
 
 describe("GET /api/tweets", () => {
+  it("returns a cached response without hitting D1 again", async () => {
+    const cachedResponse = new Response(
+      JSON.stringify([
+        {
+          id: 1,
+          embed_html: "https://x.com/user/status/1",
+          tweet_data: STORED_TWEET_DATA,
+        },
+      ]),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, s-maxage=60, max-age=0, must-revalidate",
+        },
+      }
+    );
+
+    vi.stubGlobal("caches", createCacheStub(cachedResponse));
+
+    const db = createMockDB({
+      results: [{ id: 999, embed_html: "https://x.com/user/status/999" }],
+    });
+    const locals = createLocals({ db });
+
+    const response = await GET({
+      request: createGetRequest(),
+      locals,
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual([
+      {
+        id: 1,
+        embed_html: "https://x.com/user/status/1",
+        tweet_data: STORED_TWEET_DATA,
+      },
+    ]);
+    expect(db.prepare).not.toHaveBeenCalled();
+  });
+
+  it("stores successful uncached responses in the Worker cache", async () => {
+    const cache = createCacheStub(null);
+    vi.stubGlobal("caches", cache);
+
+    const tweets = [
+      {
+        id: 1,
+        embed_html: "https://x.com/user/status/1",
+        tweet_json: JSON.stringify(STORED_TWEET_DATA),
+      },
+    ];
+    const db = createMockDB({ results: tweets });
+    const locals = createLocals({ db });
+
+    const response = await GET({
+      request: createGetRequest(),
+      locals,
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(cache.default.match).toHaveBeenCalledTimes(1);
+    expect(cache.default.put).toHaveBeenCalledTimes(1);
+  });
+
   it("returns tweets from the database", async () => {
     const tweets = [
       {

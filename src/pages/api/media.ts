@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
 import { ensureEvlogError } from "../../lib/evlog";
+import { buildSyndicationRequestInit } from "../../lib/syndication";
 
 export const prerender = false;
 
@@ -33,10 +34,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   const apiUrl = `https://cdn.syndication.twimg.com/tweet-result?id=${id}&lang=en&token=${token}`;
 
   try {
-    const res = await fetch(apiUrl, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(5000),
-    });
+    const res = await fetch(apiUrl, buildSyndicationRequestInit());
 
     if (!res.ok) {
       log.set({ media: { fetchStatus: res.status, photoCount: 0 } });

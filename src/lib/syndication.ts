@@ -17,6 +17,9 @@ const SYNDICATION_FEATURES = [
   "tfw_tweet_edit_frontend:on",
 ].join(";");
 
+const SYNDICATION_USER_AGENT =
+  "Mozilla/5.0 (compatible; Twitmarks/1.0; +https://twitmarks.alvinpelajar.workers.dev)";
+
 function getToken(id: string): string {
   return ((Number(id) / 1e15) * Math.PI)
     .toString(6 ** 2)
@@ -30,4 +33,14 @@ export function buildSyndicationUrl(tweetId: string): URL {
   url.searchParams.set("features", SYNDICATION_FEATURES);
   url.searchParams.set("token", getToken(tweetId));
   return url;
+}
+
+export function buildSyndicationRequestInit(timeoutMs = 5000): RequestInit {
+  return {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": SYNDICATION_USER_AGENT,
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+  };
 }

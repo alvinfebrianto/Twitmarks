@@ -45,6 +45,15 @@ export const errors = {
       { retryAfter: retryAfterSeconds }
     ),
 
+  badGateway: (reason: string, cause?: unknown) =>
+    createError({
+      message: "Upstream request failed",
+      status: 502,
+      why: reason,
+      fix: "Try again in a moment",
+      cause: cause instanceof Error ? cause : undefined,
+    }),
+
   database: (operation: string, cause?: unknown) =>
     createError({
       message: "Database operation failed",
