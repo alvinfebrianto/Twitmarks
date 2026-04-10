@@ -1,13 +1,13 @@
-import { buildSyndicationUrl } from "./syndication";
+import {
+  buildSyndicationRequestInit,
+  buildSyndicationUrl,
+} from "./syndication";
 
 export async function fetchTweetText(tweetId: string): Promise<string | null> {
   try {
     const url = buildSyndicationUrl(tweetId);
 
-    const res = await fetch(url.toString(), {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(5000),
-    });
+    const res = await fetch(url.toString(), buildSyndicationRequestInit());
 
     const isJson = res.headers
       .get("content-type")

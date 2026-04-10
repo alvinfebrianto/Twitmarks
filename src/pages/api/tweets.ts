@@ -25,6 +25,35 @@ const TWEET_HOSTS = new Set([
 ]);
 const MAX_TWEETS_BODY_BYTES = 12_288;
 const MAX_TWEET_URL_LENGTH = 2048;
+const CACHE_CONTROL_HEADER = "public, s-maxage=60, max-age=0, must-revalidate";
+
+function getEdgeCache() {
+  if (typeof caches === "undefined") {
+    return null;
+  }
+
+  return (caches as CacheStorage & { default?: Cache }).default ?? null;
+}
+
+function buildCacheKey(request: Request) {
+  return new Request(request.url, { method: "GET" });
+}
+
+async function invalidateTweetsCache(
+  request: Request,
+  locals: App.Locals
+): Promise<void> {
+  const cache = getEdgeCache();
+  if (!cache) {
+    return;
+  }
+
+  const deletion = cache.delete(buildCacheKey(request));
+  locals.runtime.ctx?.waitUntil?.(deletion);
+  if (!locals.runtime.ctx?.waitUntil) {
+    await deletion;
+  }
+}
 
 function requireJsonContentType(request: Request): void {
   const contentType = request.headers.get("Content-Type") ?? "";
@@ -160,11 +189,52 @@ export const POST: APIRoute = async ({ request, locals }) => {
       bareTweet.tweetId
     );
 
+    if (!tweetData) {
+      throw errors.badGateway(
+        "Failed to fetch tweet snapshot from the syndication API"
+      );
+    }
+
+    const serializedTweetData = serializeStoredTweetData(tweetData);
+    const degradedTweet = await db
+      .prepare(
+        "SELECT id, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets WHERE embed_html = ? AND (tweet_json IS NULL OR trim(tweet_json) = '' OR search_text IS NULL OR trim(search_text) = '') ORDER BY id ASC LIMIT 1"
+      )
+      .bind(storedHtml)
+      .first<{ id: number; sort_order: number; created_at: string }>();
+
+    if (degradedTweet) {
+      await db
+        .prepare(
+          "UPDATE tweets SET search_text = ?, tweet_json = ? WHERE id = ?"
+        )
+        .bind(searchText, serializedTweetData, degradedTweet.id)
+        .run();
+
+      await invalidateTweetsCache(request, locals);
+
+      log.set({
+        tweet: { id: degradedTweet.id, sortOrder: degradedTweet.sort_order },
+      });
+      log.emit({ status: 200 });
+
+      return jsonResponse({
+        id: degradedTweet.id,
+        embed_html: storedHtml,
+        search_text: searchText,
+        tweet_data: tweetData,
+        sort_order: degradedTweet.sort_order,
+        created_at: degradedTweet.created_at,
+        repaired: true,
+        success: true,
+      });
+    }
+
     const result = await db
       .prepare(
         "INSERT INTO tweets (embed_html, search_text, tweet_json, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tweets))"
       )
-      .bind(storedHtml, searchText, serializeStoredTweetData(tweetData))
+      .bind(storedHtml, searchText, serializedTweetData)
       .run();
 
     const insertedId = result.meta?.last_row_id;
@@ -178,6 +248,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       : null;
     const sortOrder = createdTweet?.sort_order ?? 1;
     const createdAt = createdTweet?.created_at ?? new Date().toISOString();
+
+    await invalidateTweetsCache(request, locals);
 
     log.set({ tweet: { id: insertedId, sortOrder } });
     log.emit({ status: 201 });
@@ -207,6 +279,16 @@ export const GET: APIRoute = async ({ request, locals }) => {
   try {
     log.set({ api: { route: "GET /api/tweets" } });
 
+    const cache = getEdgeCache();
+    const cacheKey = buildCacheKey(request);
+    const cached = cache ? await cache.match(cacheKey) : null;
+
+    if (cached) {
+      log.set({ tweets: { cached: true } });
+      log.emit({ status: 200 });
+      return cached;
+    }
+
     const db = getDbOrThrow(locals);
     await ensureTweetsSearchTextColumn(db);
 
@@ -222,13 +304,23 @@ export const GET: APIRoute = async ({ request, locals }) => {
     log.set({ tweets: { count } });
     log.emit({ status: 200 });
 
-    return new Response(JSON.stringify(tweets), {
+    const response = new Response(JSON.stringify(tweets), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "public, s-maxage=60, max-age=0, must-revalidate",
+        "Cache-Control": CACHE_CONTROL_HEADER,
       },
     });
+
+    if (cache) {
+      const write = cache.put(cacheKey, response.clone());
+      locals.runtime.ctx?.waitUntil?.(write);
+      if (!locals.runtime.ctx?.waitUntil) {
+        await write;
+      }
+    }
+
+    return response;
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to fetch tweets");
     log.error(evlogError);
@@ -258,6 +350,8 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     if (result.meta?.changes === 0) {
       throw errors.notFound("tweet");
     }
+
+    await invalidateTweetsCache(request, locals);
 
     log.set({ tweet: { id } });
     log.emit({ status: 200 });
@@ -315,6 +409,8 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
         .prepare("UPDATE tweets SET sort_order = ? WHERE id = ?")
         .bind(movedTweet.sort_order, targetId),
     ]);
+
+    await invalidateTweetsCache(request, locals);
 
     log.set({ swap: { movedId, targetId } });
     log.emit({ status: 200 });

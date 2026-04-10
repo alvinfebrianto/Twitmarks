@@ -2,7 +2,10 @@ import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
 import { ensureEvlogError } from "../../../lib/evlog";
 import { enrichNoteTweet } from "../../../lib/note-tweet";
-import { buildSyndicationUrl } from "../../../lib/syndication";
+import {
+  buildSyndicationRequestInit,
+  buildSyndicationUrl,
+} from "../../../lib/syndication";
 
 export const prerender = false;
 
@@ -46,22 +49,24 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       return cached;
     }
 
-    const res = await fetch(url.toString(), {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(5000),
-    });
+    const res = await fetch(url.toString(), buildSyndicationRequestInit());
     const isJson = res.headers
       .get("content-type")
       ?.includes("application/json");
 
     if (!(res.ok && isJson)) {
-      const status = res.ok ? 500 : 404;
-      log.set({ tweet: { fetchStatus: res.status, found: false } });
-      log.emit({ status });
-      return Response.json({ data: null }, { status });
+      log.set({
+        tweet: {
+          fetchStatus: res.status,
+          found: false,
+          contentType: res.headers.get("content-type"),
+        },
+      });
+      log.emit({ status: 502 });
+      return Response.json({ data: null }, { status: 502 });
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as import("react-tweet/api").Tweet | null;
 
     if (!data || (typeof data === "object" && Object.keys(data).length === 0)) {
       log.set({ tweet: { found: false } });
