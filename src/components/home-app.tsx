@@ -168,10 +168,146 @@ interface OgData {
   title: string | null;
 }
 
-const TweetUrlCard = ({ url }: { url: string }) => {
-  const [og, setOg] = useState<OgData | null>(null);
+interface TweetCardBindingValue {
+  image_value?: {
+    url?: string;
+  };
+  string_value?: string;
+}
+
+interface TweetCardSource {
+  card?: {
+    binding_values?: Record<string, TweetCardBindingValue>;
+    url?: string;
+  };
+}
+
+const WWW_PREFIX_RE = /^www\./;
+
+function getCardStringValue(
+  bindingValues: Record<string, TweetCardBindingValue>,
+  key: string
+): string | null {
+  const value = bindingValues[key]?.string_value;
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function getCardImageValue(
+  bindingValues: Record<string, TweetCardBindingValue>,
+  baseUrl: string
+): string | null {
+  const imageKeys = [
+    "summary_photo_image_original",
+    "summary_photo_image_x_large",
+    "summary_photo_image_large",
+    "summary_photo_image",
+    "photo_image_full_size_original",
+    "photo_image_full_size_x_large",
+    "photo_image_full_size_large",
+    "photo_image_full_size",
+    "thumbnail_image_original",
+    "thumbnail_image_x_large",
+    "thumbnail_image_large",
+    "thumbnail_image",
+  ];
+
+  for (const key of imageKeys) {
+    const value = bindingValues[key]?.image_value?.url;
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    try {
+      return new URL(value, baseUrl).toString();
+    } catch {
+      // Ignore malformed card image URLs and keep looking.
+    }
+  }
+
+  return null;
+}
+
+function getPreviewDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(WWW_PREFIX_RE, "");
+  } catch {
+    return url;
+  }
+}
+
+function getTweetCardPreview(tweet: unknown, url: string): OgData | null {
+  const card =
+    typeof tweet === "object" && tweet !== null
+      ? (tweet as TweetCardSource).card
+      : undefined;
+  const bindingValues = card?.binding_values;
+
+  if (!bindingValues) {
+    return null;
+  }
+
+  const title = getCardStringValue(bindingValues, "title");
+  const description = getCardStringValue(bindingValues, "description");
+  const domain =
+    getCardStringValue(bindingValues, "domain") ??
+    getCardStringValue(bindingValues, "vanity_url") ??
+    getPreviewDomain(url);
+  const image = getCardImageValue(bindingValues, url);
+
+  if (!(title ?? image)) {
+    return null;
+  }
+
+  return {
+    description,
+    domain,
+    image,
+    title,
+  };
+}
+
+function getTweetCardUrl(tweet: unknown): string | null {
+  const card =
+    typeof tweet === "object" && tweet !== null
+      ? (tweet as TweetCardSource).card
+      : undefined;
+
+  const candidates = [card?.binding_values?.card_url?.string_value, card?.url];
+
+  for (const value of candidates) {
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
+  return null;
+}
+
+const TweetUrlCard = ({
+  url,
+  initialOg = null,
+}: {
+  url: string;
+  initialOg?: OgData | null;
+}) => {
+  const [og, setOg] = useState<OgData | null>(initialOg);
 
   useEffect(() => {
+    if (initialOg) {
+      setOg(initialOg);
+      return;
+    }
+
     const fetchOg = async () => {
       try {
         const r = await fetch(`/api/og?url=${encodeURIComponent(url)}`);
@@ -187,7 +323,7 @@ const TweetUrlCard = ({ url }: { url: string }) => {
       }
     };
     fetchOg();
-  }, [url]);
+  }, [initialOg, url]);
 
   if (!og) {
     return null;
@@ -452,6 +588,13 @@ export const CustomEmbeddedTweet = ({
     return preview;
   }, [tweet.entities]);
 
+  const cardUrl = useMemo(() => getTweetCardUrl(tweet), [tweet]);
+  const previewLinkUrl = previewUrl ?? cardUrl;
+  const cardPreview = useMemo(
+    () => (previewLinkUrl ? getTweetCardPreview(tweet, previewLinkUrl) : null),
+    [previewLinkUrl, tweet]
+  );
+
   const hasMedia = (tweet.mediaDetails?.length ?? 0) > 0;
   const useCustomMedia =
     hasMedia &&
@@ -473,7 +616,9 @@ export const CustomEmbeddedTweet = ({
       <TweetHeader tweet={tweet} />
       {tweet.in_reply_to_status_id_str && <TweetInReplyTo tweet={tweet} />}
       <TweetBody tweet={tweet} />
-      {previewUrl && <TweetUrlCard url={previewUrl} />}
+      {previewLinkUrl && (
+        <TweetUrlCard initialOg={cardPreview} url={previewLinkUrl} />
+      )}
       {renderMedia()}
       {tweet.quoted_tweet && <QuotedTweet tweet={tweet.quoted_tweet} />}
       <TweetInfo tweet={tweet} />
