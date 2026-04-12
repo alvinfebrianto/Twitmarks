@@ -230,4 +230,52 @@ describe("TweetUrlCard", () => {
 
     expect(screen.queryByText("Stale Title")).not.toBeInTheDocument();
   });
+
+  it("does not overwrite initialOg when a stale fetch completes after initialOg becomes truthy", async () => {
+    let resolveFetch: (value: unknown) => void;
+    new Promise((resolve) => {
+      resolveFetch = resolve;
+    });
+
+    const fetchSpy = vi.fn().mockReturnValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          title: "Fetched Title",
+          domain: "fetched.dev",
+          description: null,
+          image: null,
+        }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // Render with initialOg=null so the fetch starts
+    const { rerender } = render(
+      <TweetUrlCard initialOg={null} url="https://example.com" />
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Before the fetch completes, transition initialOg to a truthy value
+    const ogData = {
+      title: "Card Title",
+      domain: "card.dev",
+      description: null,
+      image: null,
+    };
+
+    rerender(<TweetUrlCard initialOg={ogData} url="https://example.com" />);
+
+    expect(screen.getByText("Card Title")).toBeInTheDocument();
+
+    // Now resolve the stale fetch
+    resolveFetch?.(undefined);
+
+    // Wait for any pending state updates to flush
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The stale fetch result must NOT overwrite the initialOg data
+    expect(screen.getByText("Card Title")).toBeInTheDocument();
+    expect(screen.queryByText("Fetched Title")).not.toBeInTheDocument();
+  });
 });

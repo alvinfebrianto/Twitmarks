@@ -308,14 +308,16 @@ export const TweetUrlCard = ({
       return;
     }
 
+    let cancelled = false;
+
     const fetchOg = async () => {
       try {
         const r = await fetch(`/api/og?url=${encodeURIComponent(url)}`);
-        if (!r.ok) {
+        if (!r.ok || cancelled) {
           return;
         }
         const data = (await r.json()) as OgData;
-        if (data && (data.title ?? data.image)) {
+        if (!cancelled && data && (data.title ?? data.image)) {
           setOg(data);
         }
       } catch {
@@ -323,6 +325,9 @@ export const TweetUrlCard = ({
       }
     };
     fetchOg();
+    return () => {
+      cancelled = true;
+    };
   }, [initialOg, url]);
 
   if (!og) {
