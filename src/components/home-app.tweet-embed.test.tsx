@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CustomEmbeddedTweet } from "./home-app";
+import { CustomEmbeddedTweet, TweetUrlCard } from "./home-app";
 
 const READ_REPLIES_RE = /Read \d+ replies/i;
 
@@ -202,5 +202,32 @@ describe("CustomEmbeddedTweet", () => {
       )
     ).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("TweetUrlCard", () => {
+  it("clears stale og state when initialOg transitions from truthy to null", () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const ogData = {
+      title: "Stale Title",
+      domain: "stale.dev",
+      description: "Stale description",
+      image: null,
+    };
+
+    const { rerender } = render(
+      <TweetUrlCard initialOg={ogData} url="https://example.com" />
+    );
+
+    expect(screen.getByText("Stale Title")).toBeInTheDocument();
+
+    rerender(<TweetUrlCard initialOg={null} url="https://example.com" />);
+
+    expect(screen.queryByText("Stale Title")).not.toBeInTheDocument();
   });
 });

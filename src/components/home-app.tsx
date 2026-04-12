@@ -293,7 +293,7 @@ function getTweetCardUrl(tweet: unknown): string | null {
   return null;
 }
 
-const TweetUrlCard = ({
+export const TweetUrlCard = ({
   url,
   initialOg = null,
 }: {
@@ -303,8 +303,8 @@ const TweetUrlCard = ({
   const [og, setOg] = useState<OgData | null>(initialOg);
 
   useEffect(() => {
+    setOg(initialOg);
     if (initialOg) {
-      setOg(initialOg);
       return;
     }
 
