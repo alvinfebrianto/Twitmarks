@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CustomEmbeddedTweet } from "./home-app";
+import { CustomEmbeddedTweet, TweetUrlCard } from "./home-app";
 
 const READ_REPLIES_RE = /Read \d+ replies/i;
 
@@ -134,5 +134,148 @@ describe("CustomEmbeddedTweet", () => {
       screen.queryByRole("button", { name: "Copy link" })
     ).not.toBeInTheDocument();
     expect(screen.queryByText(READ_REPLIES_RE)).not.toBeInTheDocument();
+  });
+
+  it("renders tweet card metadata without fetching OG data again", () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(
+      <CustomEmbeddedTweet
+        tweet={
+          {
+            __typename: "Tweet",
+            id_str: "2027442150221201629",
+            lang: "en",
+            created_at: "2026-02-27T17:54:11.000Z",
+            display_text_range: [0, 24],
+            text: "Cloudflare tweet preview",
+            card: {
+              url: "https://t.co/C0KSqu6ruf",
+              binding_values: {
+                card_url: {
+                  string_value: "https://t.co/C0KSqu6ruf",
+                },
+                description: {
+                  string_value:
+                    "A curated showcase of the best apps built on Cloudflare Workers",
+                },
+                domain: { string_value: "garden.cloudflare.dev" },
+                summary_photo_image: {
+                  image_value: {
+                    url: "https://pbs.twimg.com/card_img/example.jpg",
+                  },
+                },
+                title: { string_value: "Small App Garden" },
+              },
+            },
+            user: {
+              id_str: "1",
+              name: "Cloudflare Developers",
+              profile_image_url_https: "",
+              profile_image_shape: "Circle",
+              screen_name: "CloudflareDev",
+              verified: false,
+              is_blue_verified: false,
+            },
+            edit_control: {
+              edit_tweet_ids: ["2027442150221201629"],
+              editable_until_msecs: "0",
+              is_edit_eligible: false,
+              edits_remaining: "0",
+            },
+            isEdited: false,
+            isStaleEdit: false,
+            favorite_count: 0,
+            conversation_count: 0,
+            news_action_type: "conversation",
+          } as unknown as Parameters<typeof CustomEmbeddedTweet>[0]["tweet"]
+        }
+      />
+    );
+
+    expect(screen.getByText("Small App Garden")).toBeInTheDocument();
+    expect(screen.getByText("garden.cloudflare.dev")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "A curated showcase of the best apps built on Cloudflare Workers"
+      )
+    ).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("TweetUrlCard", () => {
+  it("clears stale og state when initialOg transitions from truthy to null", () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const ogData = {
+      title: "Stale Title",
+      domain: "stale.dev",
+      description: "Stale description",
+      image: null,
+    };
+
+    const { rerender } = render(
+      <TweetUrlCard initialOg={ogData} url="https://example.com" />
+    );
+
+    expect(screen.getByText("Stale Title")).toBeInTheDocument();
+
+    rerender(<TweetUrlCard initialOg={null} url="https://example.com" />);
+
+    expect(screen.queryByText("Stale Title")).not.toBeInTheDocument();
+  });
+
+  it("does not overwrite initialOg when a stale fetch completes after initialOg becomes truthy", async () => {
+    let resolveFetch: (value: unknown) => void;
+    new Promise((resolve) => {
+      resolveFetch = resolve;
+    });
+
+    const fetchSpy = vi.fn().mockReturnValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          title: "Fetched Title",
+          domain: "fetched.dev",
+          description: null,
+          image: null,
+        }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // Render with initialOg=null so the fetch starts
+    const { rerender } = render(
+      <TweetUrlCard initialOg={null} url="https://example.com" />
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Before the fetch completes, transition initialOg to a truthy value
+    const ogData = {
+      title: "Card Title",
+      domain: "card.dev",
+      description: null,
+      image: null,
+    };
+
+    rerender(<TweetUrlCard initialOg={ogData} url="https://example.com" />);
+
+    expect(screen.getByText("Card Title")).toBeInTheDocument();
+
+    // Now resolve the stale fetch
+    resolveFetch?.(undefined);
+
+    // Wait for any pending state updates to flush
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The stale fetch result must NOT overwrite the initialOg data
+    expect(screen.getByText("Card Title")).toBeInTheDocument();
+    expect(screen.queryByText("Fetched Title")).not.toBeInTheDocument();
   });
 });
