@@ -232,7 +232,7 @@ describe("TweetUrlCard", () => {
   });
 
   it("does not overwrite initialOg when a stale fetch completes after initialOg becomes truthy", async () => {
-    let resolveFetch: (value: unknown) => void;
+    let resolveFetch: ((value: unknown) => void) | undefined;
     new Promise((resolve) => {
       resolveFetch = resolve;
     });

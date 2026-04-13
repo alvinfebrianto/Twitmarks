@@ -75,6 +75,24 @@ describe("enrichNoteTweet", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("upgrades suspiciously truncated long tweets even when note_tweet is absent", async () => {
+    const truncatedText = "x".repeat(276);
+    const fullText = `${truncatedText} and the rest of the tweet restored`;
+    mockFxTwitter(fullText);
+
+    const tweet = makeTweet({
+      id_str: "9876543210",
+      text: truncatedText,
+      display_text_range: [0, truncatedText.length],
+    });
+
+    const result = await enrichNoteTweet(tweet);
+
+    expect(result).not.toBe(tweet);
+    expect(result.text).toBe(fullText);
+    expect(result.display_text_range).toEqual([0, Array.from(fullText).length]);
+  });
+
   it("replaces text and clears note_tweet on fxtwitter success", async () => {
     const fullText =
       "This is the complete long tweet text that was truncated before";
@@ -105,7 +123,116 @@ describe("enrichNoteTweet", () => {
 
     expect(fetch).toHaveBeenCalledWith(
       "https://api.fxtwitter.com/i/status/9876543210",
-      expect.objectContaining({ headers: { Accept: "application/json" } })
+      expect.objectContaining({
+        headers: {
+          Accept: "application/json",
+          "User-Agent": expect.any(String),
+        },
+      })
+    );
+  });
+
+  it("identifies worker fetches to fxtwitter so note tweet enrichment still works in production", async () => {
+    const fullText =
+      "This is the complete long tweet text that a worker can only fetch when it sends a user agent";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init?: RequestInit) => {
+        const headers = new Headers(init?.headers);
+        const userAgent = headers.get("User-Agent");
+
+        return Promise.resolve(
+          userAgent
+            ? new Response(
+                JSON.stringify({
+                  code: 200,
+                  message: "OK",
+                  tweet: { text: fullText },
+                }),
+                {
+                  status: 200,
+                  headers: { "Content-Type": "application/json" },
+                }
+              )
+            : new Response(
+                JSON.stringify({
+                  error: "You must identify yourself with a User-Agent header.",
+                }),
+                {
+                  status: 401,
+                  headers: { "Content-Type": "application/json" },
+                }
+              )
+        );
+      })
+    );
+
+    const tweet = makeTweet({
+      id_str: "9876543210",
+      text: "This is the comple…",
+      note_tweet: { id: "abc" },
+    });
+
+    const result = await enrichNoteTweet(tweet);
+
+    expect(result.text).toBe(fullText);
+    expect(result.note_tweet).toBeUndefined();
+  });
+
+  it("falls back to the alternate note tweet endpoint when the primary one fails", async () => {
+    const fullText =
+      "This is the complete long tweet text fetched from the fallback endpoint";
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("Bad Gateway", { status: 502 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 200,
+            tweet: {
+              raw_text: {
+                text: fullText,
+                display_text_range: [0, Array.from(fullText).length],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const tweet = makeTweet({
+      id_str: "9876543210",
+      text: "truncated…",
+      note_tweet: { id: "abc" },
+    });
+
+    const result = await enrichNoteTweet(tweet);
+
+    expect(result.text).toBe(fullText);
+    expect(result.note_tweet).toBeUndefined();
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      1,
+      "https://api.fxtwitter.com/i/status/9876543210",
+      expect.objectContaining({
+        headers: {
+          Accept: "application/json",
+          "User-Agent": expect.any(String),
+        },
+      })
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "https://api.fxtwitter.com/status/9876543210",
+      expect.objectContaining({
+        headers: {
+          Accept: "application/json",
+          "User-Agent": expect.any(String),
+        },
+      })
     );
   });
 

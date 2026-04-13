@@ -11,6 +11,7 @@ export const prerender = false;
 
 const TWEET_ID_RE = /^\d{1,20}$/;
 const CACHE_CONTROL_HEADER = "public, max-age=3600, s-maxage=3600";
+const TWEET_CACHE_VERSION = "3";
 
 function getEdgeCache() {
   if (typeof caches === "undefined") {
@@ -21,7 +22,9 @@ function getEdgeCache() {
 }
 
 function buildCacheKey(request: Request) {
-  return new Request(request.url, { method: "GET" });
+  const cacheUrl = new URL(request.url);
+  cacheUrl.searchParams.set("v", TWEET_CACHE_VERSION);
+  return new Request(cacheUrl, { method: "GET" });
 }
 
 export const GET: APIRoute = async ({ params, request, locals }) => {

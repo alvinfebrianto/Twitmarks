@@ -256,6 +256,103 @@ describe("prefetched tweet rendering", () => {
     expect(screen.getByText("Stored tweet from D1")).toBeInTheDocument();
     expect(vi.mocked(reactTweet.useTweet)).not.toHaveBeenCalled();
   });
+
+  it("renders full stored long tweets without refreshing them", () => {
+    const prefetchedTweetData = PREFETCHED_TWEET.tweet_data;
+    if (!prefetchedTweetData) {
+      throw new Error("Missing prefetched tweet data");
+    }
+
+    const fullLongText = "x".repeat(320);
+    const fullLongTweet: DbTweet = {
+      ...PREFETCHED_TWEET,
+      tweet_data: {
+        ...prefetchedTweetData,
+        display_text_range: [0, fullLongText.length],
+        text: fullLongText,
+      },
+    };
+
+    render(<App initialTweets={[fullLongTweet]} />);
+
+    expect(screen.getByText(fullLongText)).toBeInTheDocument();
+    expect(vi.mocked(reactTweet.useTweet)).not.toHaveBeenCalled();
+  });
+
+  it("refreshes long stored tweets through the live tweet endpoint", async () => {
+    const storedPreview = "x".repeat(270);
+    const prefetchedTweetData = PREFETCHED_TWEET.tweet_data;
+    if (!prefetchedTweetData) {
+      throw new Error("Missing prefetched tweet data");
+    }
+    const liveTweet: typeof prefetchedTweetData = {
+      ...prefetchedTweetData,
+      display_text_range: [0, 29] as [number, number],
+      text: "Live full tweet restored in prod",
+    };
+    const longStoredTweet: DbTweet = {
+      ...PREFETCHED_TWEET,
+      tweet_data: {
+        ...prefetchedTweetData,
+        display_text_range: [0, storedPreview.length],
+        text: storedPreview,
+      },
+    };
+    const originalIntersectionObserver = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class IntersectionObserver {
+      readonly root: Element | null = null;
+      readonly rootMargin: string = "";
+      readonly thresholds: readonly number[] = [];
+      private readonly callback: IntersectionObserverCallback;
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+      }
+      observe(target: Element) {
+        this.callback(
+          [
+            {
+              boundingClientRect: target.getBoundingClientRect(),
+              intersectionRatio: 1,
+              intersectionRect: target.getBoundingClientRect(),
+              isIntersecting: true,
+              rootBounds: null,
+              target,
+              time: 0,
+            },
+          ],
+          this
+        );
+      }
+      unobserve() {
+        /* noop */
+      }
+      disconnect() {
+        /* noop */
+      }
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+    };
+    vi.mocked(reactTweet.useTweet).mockReturnValue({
+      data: liveTweet,
+      error: null,
+      isLoading: false,
+    });
+
+    try {
+      render(<App initialTweets={[longStoredTweet]} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(liveTweet.text)).toBeInTheDocument();
+      });
+      expect(vi.mocked(reactTweet.useTweet)).toHaveBeenCalledWith(
+        undefined,
+        "/api/tweet/1000000000000000000"
+      );
+    } finally {
+      globalThis.IntersectionObserver = originalIntersectionObserver;
+    }
+  });
 });
 
 describe("theme hydration", () => {
