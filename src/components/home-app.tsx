@@ -632,6 +632,23 @@ export const CustomEmbeddedTweet = ({
 };
 
 const LAZY_LOAD_MARGIN = "800px 0px";
+const TRUNCATED_LONG_TWEET_MIN_LENGTH = 260;
+const TRUNCATED_LONG_TWEET_MAX_LENGTH = 280;
+
+function shouldRefreshStoredTweetData(tweet: Tweet): boolean {
+  if (tweet.note_tweet) {
+    return true;
+  }
+
+  const textLength = Array.from(tweet.text).length;
+
+  return (
+    textLength >= TRUNCATED_LONG_TWEET_MIN_LENGTH &&
+    textLength <= TRUNCATED_LONG_TWEET_MAX_LENGTH &&
+    tweet.display_text_range[0] === 0 &&
+    tweet.display_text_range[1] === textLength
+  );
+}
 
 const FetchedTweetContent = ({
   nearViewport,
@@ -728,6 +745,13 @@ const TweetEmbed = ({
   const cardRef = useRef<HTMLDivElement>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [nearViewport, setNearViewport] = useState(false);
+  const storedTweetData = tweet.tweet_data;
+  const shouldRefreshStoredTweet = Boolean(
+    storedTweetData && shouldRefreshStoredTweetData(storedTweetData)
+  );
+  const shouldUseStoredTweetData = Boolean(
+    storedTweetData && !shouldRefreshStoredTweet
+  );
 
   const tweetId = useMemo(
     () => extractTweetId(tweet.embed_html),
@@ -735,7 +759,7 @@ const TweetEmbed = ({
   );
 
   useEffect(() => {
-    if (tweet.tweet_data || nearViewport || !cardRef.current) {
+    if (shouldUseStoredTweetData || nearViewport || !cardRef.current) {
       return;
     }
 
@@ -751,7 +775,7 @@ const TweetEmbed = ({
 
     observer.observe(cardRef.current);
     return () => observer.disconnect();
-  }, [nearViewport, tweet.tweet_data]);
+  }, [nearViewport, shouldUseStoredTweetData]);
 
   return (
     <motion.div
@@ -767,10 +791,10 @@ const TweetEmbed = ({
         className="[&>div]:!m-0 min-w-0"
         data-theme={isDark ? "dark" : "light"}
       >
-        {tweet.tweet_data ? (
+        {shouldUseStoredTweetData && storedTweetData ? (
           <CustomEmbeddedTweet
             onImageClick={onOpenImageViewer}
-            tweet={tweet.tweet_data}
+            tweet={storedTweetData}
           />
         ) : (
           <FetchedTweetContent

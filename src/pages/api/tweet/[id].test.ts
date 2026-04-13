@@ -49,6 +49,56 @@ describe("GET /api/tweet/[id]", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("bypasses stale cache entries from an older tweet cache version", async () => {
+    const staleCachedResponse = new Response(
+      JSON.stringify({
+        data: { id_str: "123", text: "stale truncated tweet" },
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, max-age=3600, s-maxage=3600",
+        },
+      }
+    );
+    const cache = {
+      default: {
+        match: vi.fn((request: Request) =>
+          Promise.resolve(
+            request.url === "http://localhost/api/tweet/123"
+              ? staleCachedResponse
+              : null
+          )
+        ),
+        put: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    vi.stubGlobal("caches", cache);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () =>
+          Promise.resolve({ id_str: "123", text: "fresh full tweet" }),
+      })
+    );
+
+    const response = await GET({
+      params: { id: "123" },
+      request: new Request("http://localhost/api/tweet/123"),
+      locals: createLocals(),
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { id_str: "123", text: "fresh full tweet" },
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("returns 502 when the upstream rejects the syndication fetch", async () => {
     vi.stubGlobal("fetch", () =>
       Promise.resolve({
