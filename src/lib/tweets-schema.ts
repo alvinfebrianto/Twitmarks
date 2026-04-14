@@ -12,6 +12,11 @@ const CREATE_ADMIN_SESSIONS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS admin_sessio
   expires_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL
 )`;
+const CREATE_ADMIN_SECRET_CONFIG_TABLE_SQL = `CREATE TABLE IF NOT EXISTS admin_secret_config (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  secret_hash TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+)`;
 const CREATE_ADMIN_SESSIONS_EXPIRES_AT_INDEX_SQL = `CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at
   ON admin_sessions(expires_at)`;
 const CREATE_RATE_LIMITS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS rate_limits (
@@ -27,6 +32,7 @@ const CREATE_RATE_LIMITS_CREATED_AT_INDEX_SQL = `CREATE INDEX IF NOT EXISTS idx_
 
 const tweetsSearchTextEnsures = new WeakMap<Database, Promise<void>>();
 const adminSessionSchemaEnsures = new WeakMap<Database, Promise<void>>();
+const adminSecretSchemaEnsures = new WeakMap<Database, Promise<void>>();
 const rateLimitSchemaEnsures = new WeakMap<Database, Promise<void>>();
 
 function getErrorMessage(error: unknown): string {
@@ -116,6 +122,24 @@ export async function ensureAdminSessionsSchema(db: Database): Promise<void> {
   await ensurePromise;
 }
 
+export async function ensureAdminSecretSchema(db: Database): Promise<void> {
+  const pendingEnsure = adminSecretSchemaEnsures.get(db);
+  if (pendingEnsure) {
+    await pendingEnsure;
+    return;
+  }
+
+  const ensurePromise = (async () => {
+    await db.prepare(CREATE_ADMIN_SECRET_CONFIG_TABLE_SQL).run();
+  })().catch((error) => {
+    adminSecretSchemaEnsures.delete(db);
+    throw error;
+  });
+
+  adminSecretSchemaEnsures.set(db, ensurePromise);
+  await ensurePromise;
+}
+
 export async function ensureRateLimitsSchema(db: Database): Promise<void> {
   const pendingEnsure = rateLimitSchemaEnsures.get(db);
   if (pendingEnsure) {
@@ -137,6 +161,7 @@ export async function ensureRateLimitsSchema(db: Database): Promise<void> {
 
 export async function ensureDatabaseSchema(db: Database): Promise<void> {
   await ensureAdminSessionsSchema(db);
+  await ensureAdminSecretSchema(db);
   await ensureRateLimitsSchema(db);
   await ensureTweetsSearchTextColumn(db);
 }

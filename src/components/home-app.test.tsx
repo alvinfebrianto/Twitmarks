@@ -684,6 +684,45 @@ describe("Admin prompt dialog", () => {
     vi.unstubAllGlobals();
   });
 
+  it("submits a new admin secret from the header controls", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Change admin secret" })
+    );
+    await user.type(screen.getByLabelText("New admin secret"), "new-secret");
+    await user.type(
+      screen.getByLabelText("Confirm new admin secret"),
+      "new-secret"
+    );
+    await user.click(screen.getByRole("button", { name: "Save secret" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/secret",
+        expect.objectContaining({
+          body: JSON.stringify({ secret: "new-secret" }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Change Admin Secret" })
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it("clears admin error when closed via Escape", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,

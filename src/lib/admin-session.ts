@@ -3,8 +3,10 @@ import { errors } from "./evlog";
 
 export const ADMIN_SESSION_COOKIE = "__Host-twitmarks-admin";
 export const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24;
+export const ADMIN_SECRET_MAX_LENGTH = 256;
 
 const SESSION_COOKIE_SUFFIX = "Path=/; HttpOnly; Secure; SameSite=Strict";
+const ADMIN_SECRET_CONFIG_ID = 1;
 
 const COOKIE_SPLIT_RE = /;\s*/;
 
@@ -54,10 +56,22 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export async function verifyAdminSecret(
-  candidate: string,
+async function resolveConfiguredAdminSecretHash(
+  db: Database,
   configuredSecret?: string
-): Promise<void> {
+): Promise<string> {
+  const configuredHash = await db
+    .prepare("SELECT secret_hash FROM admin_secret_config WHERE id = ?")
+    .bind(ADMIN_SECRET_CONFIG_ID)
+    .first<{ secret_hash: string }>();
+
+  if (
+    typeof configuredHash?.secret_hash === "string" &&
+    configuredHash.secret_hash
+  ) {
+    return configuredHash.secret_hash;
+  }
+
   if (!configuredSecret) {
     throw errors.internal(
       "Internal server error",
@@ -65,12 +79,20 @@ export async function verifyAdminSecret(
     );
   }
 
-  const [candidateHash, configuredHash] = await Promise.all([
+  return sha256Hex(configuredSecret);
+}
+
+export async function verifyAdminSecret(
+  candidate: string,
+  db: Database,
+  configuredSecret?: string
+): Promise<void> {
+  const [candidateHash, resolvedConfiguredHash] = await Promise.all([
     sha256Hex(candidate),
-    sha256Hex(configuredSecret),
+    resolveConfiguredAdminSecretHash(db, configuredSecret),
   ]);
 
-  if (!timingSafeEqual(candidateHash, configuredHash)) {
+  if (!timingSafeEqual(candidateHash, resolvedConfiguredHash)) {
     throw errors.unauthorized("Invalid authentication credentials");
   }
 }
@@ -139,6 +161,18 @@ export async function revokeAdminSession(
   await db
     .prepare("DELETE FROM admin_sessions WHERE token_hash = ?")
     .bind(await sha256Hex(token))
+    .run();
+}
+
+export async function updateAdminSecret(
+  db: Database,
+  nextSecret: string
+): Promise<void> {
+  await db
+    .prepare(
+      "INSERT OR REPLACE INTO admin_secret_config (id, secret_hash, updated_at) VALUES (?, ?, ?)"
+    )
+    .bind(ADMIN_SECRET_CONFIG_ID, await sha256Hex(nextSecret), nowInSeconds())
     .run();
 }
 
