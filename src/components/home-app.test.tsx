@@ -684,6 +684,35 @@ describe("Admin prompt dialog", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps save disabled until secret confirmation matches", async () => {
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Change admin secret" })
+    );
+
+    const saveButton = screen.getByRole("button", { name: "Save secret" });
+    const newSecretInput = screen.getByLabelText("New admin secret");
+    const confirmSecretInput = screen.getByLabelText(
+      "Confirm new admin secret"
+    );
+
+    expect(saveButton).toBeDisabled();
+
+    await user.type(newSecretInput, "new-secret");
+    expect(saveButton).toBeDisabled();
+
+    await user.type(confirmSecretInput, "wrong-secret");
+    expect(saveButton).toBeDisabled();
+
+    await user.clear(confirmSecretInput);
+    await user.type(confirmSecretInput, "new-secret");
+
+    expect(saveButton).toBeEnabled();
+  });
+
   it("submits a new admin secret from the header controls", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

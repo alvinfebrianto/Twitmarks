@@ -31,10 +31,7 @@ export function ChangeAdminSecretDialog({
   }, [isOpen]);
 
   const hasMismatch = useMemo(
-    () =>
-      secretInput.length > 0 &&
-      confirmInput.length > 0 &&
-      secretInput !== confirmInput,
+    () => secretInput.length > 0 && secretInput !== confirmInput,
     [confirmInput, secretInput]
   );
 
