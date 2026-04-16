@@ -25,6 +25,7 @@ import {
   ArrowUpIcon,
   CheckIcon,
   CheckSquareIcon,
+  KeyIcon,
   LockSimpleIcon,
   LockSimpleOpenIcon,
   MagnifyingGlassIcon,
@@ -1310,14 +1311,14 @@ export default function App({
             {isAdmin && (
               <MagneticButton
                 aria-label="Change admin secret"
-                className="glass-panel h-9 rounded-full px-4 font-medium text-sm text-zinc-700 dark:text-zinc-300"
+                className="glass-panel flex h-9 w-9 items-center justify-center rounded-full text-zinc-700 dark:text-zinc-300"
                 onClick={() => {
                   setChangeSecretError(null);
                   setIsChangeSecretOpen(true);
                 }}
                 type="button"
               >
-                Secret
+                <KeyIcon aria-hidden="true" className="h-4 w-4" />
               </MagneticButton>
             )}
 
@@ -1563,11 +1564,17 @@ export default function App({
             await changeAdminSecret(secret);
             setIsChangeSecretOpen(false);
           } catch (error) {
-            setChangeSecretError(
+            const message =
               error instanceof Error
                 ? error.message
-                : "Failed to update admin secret."
-            );
+                : "Failed to update admin secret.";
+
+            if (message === "Admin session expired. Please unlock again.") {
+              setIsChangeSecretOpen(false);
+              setMutationError(message);
+            } else {
+              setChangeSecretError(message);
+            }
           } finally {
             setIsChangeSecretSubmitting(false);
           }

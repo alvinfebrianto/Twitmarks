@@ -752,6 +752,39 @@ describe("Admin prompt dialog", () => {
     });
   });
 
+  it("shows the session expiry message on the page when secret change gets a 401", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: vi.fn().mockResolvedValue({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { user } = renderWithUser(
+      <App initialIsAdmin={true} initialTweets={MOCK_TWEETS} />
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Change admin secret" })
+    );
+    await user.type(screen.getByLabelText("New admin secret"), "new-secret");
+    await user.type(
+      screen.getByLabelText("Confirm new admin secret"),
+      "new-secret"
+    );
+    await user.click(screen.getByRole("button", { name: "Save secret" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Change Admin Secret" })
+      ).not.toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText("Admin session expired. Please unlock again.")
+    ).toBeInTheDocument();
+  });
+
   it("clears admin error when closed via Escape", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
