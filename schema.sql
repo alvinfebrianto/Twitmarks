@@ -15,6 +15,12 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS admin_secret_config (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  secret_hash TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at
   ON admin_sessions(expires_at);
 

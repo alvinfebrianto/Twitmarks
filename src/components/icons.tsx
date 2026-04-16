@@ -157,6 +157,19 @@ export function LockSimpleOpenIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+export function KeyIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      fill="currentColor"
+      viewBox="0 0 256 256"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path d="M216.57,39.43A80,80,0,0,0,83.91,120.78L28.69,176a15.86,15.86,0,0,0-4.69,11.31V224a16,16,0,0,0,16,16H72a8,8,0,0,0,8-8V216H96a8,8,0,0,0,8-8V192h16a8,8,0,0,0,5.66-2.34l9.56-9.57A80,80,0,0,0,216.57,39.43ZM224,98.34c-1.57,21.16-10.68,38-27.14,50A80.05,80.05,0,0,1,140.61,164L129.94,174.6A24,24,0,0,1,113,181.66l-1-.06H96a16,16,0,0,0-16,16v8H64a16,16,0,0,0-16,16v8H40V187.31l58.83-58.82a8,8,0,0,0,1.67-8.7A64,64,0,1,1,224,98.34ZM192,76a12,12,0,1,1-12-12A12,12,0,0,1,192,76Z" />
+    </svg>
+  );
+}
+
 export function PlusIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg

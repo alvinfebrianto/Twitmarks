@@ -5,8 +5,15 @@ interface MockDbOptions {
   firstResult?: unknown;
   firstResults?: unknown[];
   lastRowId?: number;
-  missingTables?: Array<"admin_sessions" | "rate_limits">;
+  missingTables?: Array<
+    "admin_secret_config" | "admin_sessions" | "rate_limits"
+  >;
   results?: unknown[];
+}
+
+interface AdminSecretRow {
+  secretHash: string;
+  updatedAt: number;
 }
 
 interface SessionRow {
@@ -20,6 +27,7 @@ interface RateLimitRow {
 }
 
 type MockTableName = "admin_sessions" | "rate_limits";
+type MockConfigTableName = "admin_secret_config";
 
 interface MockStatement {
   __args: unknown[];
@@ -94,6 +102,18 @@ function handleAdminSessionDelete(
   return { meta: { changes: deleted ? 1 : 0, last_row_id: 0 } };
 }
 
+function handleAdminSecretRun(args: unknown[]) {
+  const [, secretHash, updatedAt] = args as [number, string, number?];
+
+  return {
+    secret: {
+      secretHash,
+      updatedAt: updatedAt ?? Math.floor(Date.now() / 1000),
+    },
+    result: { meta: { changes: 1, last_row_id: 1 } },
+  };
+}
+
 function handleRateLimitDelete(
   args: unknown[],
   rateLimits: Map<string, RateLimitRow>
@@ -122,16 +142,22 @@ export function createMockDB(options: MockDbOptions = {}) {
   const firstResults = [...(options.firstResults ?? [])];
   let hasSearchTextColumn = true;
   let hasTweetJsonColumn = true;
+  let hasAdminSecretConfigTable = !(options.missingTables ?? []).includes(
+    "admin_secret_config"
+  );
   let hasAdminSessionsTable = !(options.missingTables ?? []).includes(
     "admin_sessions"
   );
   let hasRateLimitsTable = !(options.missingTables ?? []).includes(
     "rate_limits"
   );
+  let adminSecret: AdminSecretRow | null = null;
   const sessions = new Map<string, SessionRow>();
   const rateLimits = new Map<string, RateLimitRow>();
 
-  function throwMissingTable(tableName: MockTableName): never {
+  function throwMissingTable(
+    tableName: MockConfigTableName | MockTableName
+  ): never {
     throw new Error(`no such table: ${tableName}`);
   }
 
@@ -139,7 +165,15 @@ export function createMockDB(options: MockDbOptions = {}) {
     return { meta: { changes: 0, last_row_id: 0 } };
   }
 
-  function requireTable(tableName: MockTableName) {
+  function requireTable(tableName: MockConfigTableName | MockTableName) {
+    if (tableName === "admin_secret_config") {
+      if (!hasAdminSecretConfigTable) {
+        throwMissingTable(tableName);
+      }
+
+      return;
+    }
+
     if (tableName === "admin_sessions") {
       if (!hasAdminSessionsTable) {
         throwMissingTable(tableName);
@@ -154,6 +188,11 @@ export function createMockDB(options: MockDbOptions = {}) {
   }
 
   function handleSchemaRun(sql: string) {
+    if (sql.startsWith("CREATE TABLE IF NOT EXISTS admin_secret_config")) {
+      hasAdminSecretConfigTable = true;
+      return emptyRunResult();
+    }
+
     if (sql.startsWith("CREATE TABLE IF NOT EXISTS admin_sessions")) {
       hasAdminSessionsTable = true;
       return emptyRunResult();
@@ -182,6 +221,17 @@ export function createMockDB(options: MockDbOptions = {}) {
     if (sql === "ALTER TABLE tweets ADD COLUMN tweet_json TEXT") {
       hasTweetJsonColumn = true;
       return emptyRunResult();
+    }
+
+    return null;
+  }
+
+  function handleAdminSecretMutation(sql: string, args: unknown[]) {
+    if (sql.includes("INSERT OR REPLACE INTO admin_secret_config")) {
+      requireTable("admin_secret_config");
+      const { result, secret } = handleAdminSecretRun(args);
+      adminSecret = secret;
+      return result;
     }
 
     return null;
@@ -259,6 +309,11 @@ export function createMockDB(options: MockDbOptions = {}) {
       return schemaRun;
     }
 
+    const adminSecretMutation = handleAdminSecretMutation(sql, args);
+    if (adminSecretMutation) {
+      return adminSecretMutation;
+    }
+
     const adminSessionMutation = handleAdminSessionMutation(sql, args);
     if (adminSessionMutation) {
       return adminSessionMutation;
@@ -273,6 +328,12 @@ export function createMockDB(options: MockDbOptions = {}) {
   }
 
   function handleFirst(sql: string, args: unknown[]) {
+    if (sql.includes("FROM admin_secret_config")) {
+      requireTable("admin_secret_config");
+
+      return adminSecret ? { secret_hash: adminSecret.secretHash } : null;
+    }
+
     if (sql.includes("FROM admin_sessions")) {
       if (!hasAdminSessionsTable) {
         throwMissingTable("admin_sessions");
@@ -322,6 +383,17 @@ export function createMockDB(options: MockDbOptions = {}) {
       },
       setHasTweetJsonColumn(value: boolean) {
         hasTweetJsonColumn = value;
+      },
+      setAdminSecretHash(value: string | null) {
+        adminSecret = value
+          ? {
+              secretHash: value,
+              updatedAt: Math.floor(Date.now() / 1000),
+            }
+          : null;
+      },
+      setHasAdminSecretConfigTable(value: boolean) {
+        hasAdminSecretConfigTable = value;
       },
       setHasAdminSessionsTable(value: boolean) {
         hasAdminSessionsTable = value;

@@ -25,6 +25,7 @@ import {
   ArrowUpIcon,
   CheckIcon,
   CheckSquareIcon,
+  KeyIcon,
   LockSimpleIcon,
   LockSimpleOpenIcon,
   MagnifyingGlassIcon,
@@ -48,6 +49,7 @@ import { cn } from "../lib/utils";
 import { AddTweetModal } from "./add-tweet-modal";
 import { AdminPromptDialog } from "./admin-prompt-dialog";
 import { BulkActionBar } from "./bulk-action-bar";
+import { ChangeAdminSecretDialog } from "./change-admin-secret-dialog";
 import { FilterDrawer } from "./filter-drawer";
 import { useAdminSession } from "./hooks/use-admin-session";
 import { useEscapeToClose } from "./hooks/use-escape-to-close";
@@ -936,12 +938,18 @@ export default function App({
   const cols = useResponsiveColumns();
   const [isDark, setIsDark] = useState(false);
 
-  const { isAdmin, unlockAdmin, lockAdmin, expireAdmin } =
+  const { isAdmin, unlockAdmin, lockAdmin, changeAdminSecret, expireAdmin } =
     useAdminSession(initialIsAdmin);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [isAdminSubmitting, setIsAdminSubmitting] = useState(false);
+  const [changeSecretError, setChangeSecretError] = useState<string | null>(
+    null
+  );
+  const [isChangeSecretSubmitting, setIsChangeSecretSubmitting] =
+    useState(false);
 
   const [isAdminPromptOpen, setIsAdminPromptOpen] = useState(false);
+  const [isChangeSecretOpen, setIsChangeSecretOpen] = useState(false);
 
   const handleCloseAdminPrompt = useCallback(() => {
     if (isAdminSubmitting) {
@@ -950,6 +958,15 @@ export default function App({
     setIsAdminPromptOpen(false);
     setAdminError(null);
   }, [isAdminSubmitting]);
+
+  const handleCloseChangeSecret = useCallback(() => {
+    if (isChangeSecretSubmitting) {
+      return;
+    }
+
+    setIsChangeSecretOpen(false);
+    setChangeSecretError(null);
+  }, [isChangeSecretSubmitting]);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(
@@ -974,6 +991,8 @@ export default function App({
       setSelectionMode(false);
       setSelectedIds(new Set());
       setConfirmingBulkDelete(false);
+      setIsChangeSecretOpen(false);
+      setChangeSecretError(null);
     }
   }, [isAdmin]);
 
@@ -1025,6 +1044,7 @@ export default function App({
       isFilterDrawerOpen ||
       isAddModalOpen ||
       isAdminPromptOpen ||
+      isChangeSecretOpen ||
       (imageViewerPhotos !== null && imageViewerPhotos.length > 0);
     document.body.style.overflow = hasOverlay ? "hidden" : "";
     return () => {
@@ -1034,11 +1054,13 @@ export default function App({
     isFilterDrawerOpen,
     isAddModalOpen,
     isAdminPromptOpen,
+    isChangeSecretOpen,
     imageViewerPhotos,
   ]);
 
   useEscapeToClose(isFilterDrawerOpen, () => setIsFilterDrawerOpen(false));
   useEscapeToClose(isAdminPromptOpen, handleCloseAdminPrompt);
+  useEscapeToClose(isChangeSecretOpen, handleCloseChangeSecret);
 
   const filteredTweets = useMemo(
     () => filterTweets(tweets, { searchQuery, dateFilter, sortOption }),
@@ -1288,6 +1310,20 @@ export default function App({
 
             {isAdmin && (
               <MagneticButton
+                aria-label="Change admin secret"
+                className="glass-panel flex h-9 w-9 items-center justify-center rounded-full text-zinc-700 dark:text-zinc-300"
+                onClick={() => {
+                  setChangeSecretError(null);
+                  setIsChangeSecretOpen(true);
+                }}
+                type="button"
+              >
+                <KeyIcon aria-hidden="true" className="h-4 w-4" />
+              </MagneticButton>
+            )}
+
+            {isAdmin && (
+              <MagneticButton
                 aria-label={
                   selectionMode ? "Cancel selection" : "Select tweets"
                 }
@@ -1512,6 +1548,35 @@ export default function App({
             );
           } finally {
             setIsAdminSubmitting(false);
+          }
+        }}
+      />
+
+      <ChangeAdminSecretDialog
+        error={changeSecretError}
+        isOpen={isChangeSecretOpen}
+        isSubmitting={isChangeSecretSubmitting}
+        onClose={handleCloseChangeSecret}
+        onSubmit={async (secret) => {
+          setChangeSecretError(null);
+          setIsChangeSecretSubmitting(true);
+          try {
+            await changeAdminSecret(secret);
+            setIsChangeSecretOpen(false);
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Failed to update admin secret.";
+
+            if (message === "Admin session expired. Please unlock again.") {
+              setIsChangeSecretOpen(false);
+              setMutationError(message);
+            } else {
+              setChangeSecretError(message);
+            }
+          } finally {
+            setIsChangeSecretSubmitting(false);
           }
         }}
       />

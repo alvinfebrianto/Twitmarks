@@ -2,36 +2,27 @@ import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
 import {
   ADMIN_SECRET_MAX_LENGTH,
-  buildSetCookie,
-  createAdminSession,
-  verifyAdminSecret,
+  requireAdminSession,
+  updateAdminSecret,
 } from "../../../lib/admin-session";
 import { getDbOrThrow } from "../../../lib/db";
 import { ensureEvlogError, errors, errorToObject } from "../../../lib/evlog";
-import { enforceRateLimit } from "../../../lib/rate-limit";
 import { readJsonObject } from "../../../lib/request-body";
 import {
   ensureAdminSecretSchema,
   ensureAdminSessionsSchema,
-  ensureRateLimitsSchema,
 } from "../../../lib/tweets-schema";
 
 export const prerender = false;
-const MAX_LOGIN_BODY_BYTES = 1024;
+const MAX_SECRET_BODY_BYTES = 1024;
 
-function errorResponse(error: { retryAfter?: number; status: number }) {
-  const headers = new Headers({
-    "Content-Type": "application/json",
-    "Cache-Control": "no-store",
-  });
-
-  if (typeof error.retryAfter === "number") {
-    headers.set("Retry-After", String(error.retryAfter));
-  }
-
+function errorResponse(error: { status: number }) {
   return new Response(JSON.stringify(errorToObject(error as never)), {
     status: error.status,
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
   });
 }
 
@@ -39,17 +30,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const log = createWorkersLogger(request);
 
   try {
-    log.set({ api: { route: "POST /api/admin/login" } });
+    log.set({ api: { route: "POST /api/admin/secret" } });
 
     const db = getDbOrThrow(locals);
     await ensureAdminSessionsSchema(db);
     await ensureAdminSecretSchema(db);
-    await ensureRateLimitsSchema(db);
-    await enforceRateLimit(db, request, {
-      limit: 5,
-      scope: "admin-login",
-      windowSeconds: 60,
-    });
+    await requireAdminSession(request, db);
 
     const contentType = request.headers.get("Content-Type") ?? "";
     if (
@@ -65,9 +51,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const body = await readJsonObject(request, MAX_LOGIN_BODY_BYTES);
-
+    const body = await readJsonObject(request, MAX_SECRET_BODY_BYTES);
     const { secret } = body;
+
     if (typeof secret !== "string" || !secret.trim()) {
       throw errors.badRequest(
         "secret",
@@ -82,11 +68,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const configuredSecret = locals.runtime.env.ADMIN_SECRET;
-    await verifyAdminSecret(secret.trim(), db, configuredSecret);
-
-    const sessionValue = await createAdminSession(db);
-
+    await updateAdminSecret(db, secret.trim());
     log.emit({ status: 200 });
 
     return new Response(JSON.stringify({ success: true }), {
@@ -94,14 +76,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       headers: {
         "Content-Type": "application/json",
         "Cache-Control": "no-store",
-        "Set-Cookie": buildSetCookie(sessionValue),
       },
     });
   } catch (error) {
-    const evlogError = ensureEvlogError(
-      error,
-      "Failed to create admin session"
-    );
+    const evlogError = ensureEvlogError(error, "Failed to update admin secret");
     log.error(evlogError);
     log.emit({ status: evlogError.status });
     return errorResponse(evlogError);
