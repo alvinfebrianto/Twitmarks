@@ -111,13 +111,15 @@ const ImageViewerModal = ({
         role="dialog"
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       >
-        <img
-          alt="Tweet media"
-          className="max-h-[90dvh] max-w-[85dvw] cursor-default rounded-2xl object-contain shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]"
-          height={photo.height}
-          src={`${photo.url}?format=jpg&name=large`}
-          width={photo.width}
-        />
+        <div className="relative inline-block cursor-default overflow-hidden rounded-2xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]">
+          <img
+            alt="Tweet media"
+            className="block h-auto max-h-[90dvh] w-auto max-w-[85dvw]"
+            height={photo.height}
+            src={`${photo.url}?format=jpg&name=large`}
+            width={photo.width}
+          />
+        </div>
         {photos.length > 1 && (
           <>
             <button
