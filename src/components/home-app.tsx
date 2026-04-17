@@ -91,7 +91,7 @@ const ImageViewerModal = ({
     <>
       <motion.div
         animate={{ opacity: 1 }}
-        className="fixed inset-0 z-[80] bg-zinc-950/90 backdrop-blur-xl"
+        className="fixed inset-0 z-[80] bg-zinc-950/95 backdrop-blur-xl"
         exit={{ opacity: 0 }}
         initial={{ opacity: 0 }}
         onClick={onClose}
@@ -100,7 +100,7 @@ const ImageViewerModal = ({
         animate={{ opacity: 1, scale: 1 }}
         aria-label="Image viewer"
         aria-modal={true}
-        className="fixed inset-0 z-[90] flex cursor-zoom-out items-center justify-center p-6"
+        className="fixed inset-0 z-[90] flex cursor-zoom-out items-center justify-center"
         exit={{ opacity: 0, scale: 0.96 }}
         initial={{ opacity: 0, scale: 0.96 }}
         onClick={(e) => {
@@ -111,42 +111,44 @@ const ImageViewerModal = ({
         role="dialog"
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="relative flex max-h-[90dvh] max-w-5xl cursor-default flex-col items-center gap-4">
-          <img
-            alt="Tweet media"
-            className="h-full max-h-[80dvh] w-full max-w-full rounded-2xl object-contain shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]"
-            height={photo.height}
-            src={`${photo.url}?format=jpg&name=large`}
-            width={photo.width}
-          />
-          {photos.length > 1 && (
-            <div className="flex items-center gap-3">
-              <button
-                aria-label="Previous image"
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 disabled:opacity-30"
-                disabled={current === 0}
-                onClick={() => setCurrent((p) => Math.max(0, p - 1))}
-                type="button"
-              >
-                <ArrowLeftIcon aria-hidden="true" className="h-3.5 w-3.5" />
-              </button>
-              <span className="font-medium text-sm text-white/60 tabular-nums">
-                {current + 1} / {photos.length}
-              </span>
-              <button
-                aria-label="Next image"
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 disabled:opacity-30"
-                disabled={current === photos.length - 1}
-                onClick={() =>
-                  setCurrent((p) => Math.min(photos.length - 1, p + 1))
-                }
-                type="button"
-              >
-                <ArrowRightIcon aria-hidden="true" className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
+        <img
+          alt="Tweet media"
+          className="max-h-[90dvh] max-w-[85dvw] cursor-default rounded-2xl object-contain shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]"
+          height={photo.height}
+          src={`${photo.url}?format=jpg&name=large`}
+          width={photo.width}
+        />
+        {photos.length > 1 && (
+          <>
+            <button
+              aria-label="Previous image"
+              className="absolute top-1/2 left-4 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-all hover:scale-110 hover:bg-white/20 disabled:pointer-events-none disabled:opacity-0"
+              disabled={current === 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrent((p) => Math.max(0, p - 1));
+              }}
+              type="button"
+            >
+              <ArrowLeftIcon aria-hidden="true" className="h-4 w-4" />
+            </button>
+            <button
+              aria-label="Next image"
+              className="absolute top-1/2 right-4 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-all hover:scale-110 hover:bg-white/20 disabled:pointer-events-none disabled:opacity-0"
+              disabled={current === photos.length - 1}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrent((p) => Math.min(photos.length - 1, p + 1));
+              }}
+              type="button"
+            >
+              <ArrowRightIcon aria-hidden="true" className="h-4 w-4" />
+            </button>
+            <span className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 font-medium text-white/70 text-xs tabular-nums backdrop-blur-sm">
+              {current + 1} / {photos.length}
+            </span>
+          </>
+        )}
         <button
           aria-label="Close image viewer"
           className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
