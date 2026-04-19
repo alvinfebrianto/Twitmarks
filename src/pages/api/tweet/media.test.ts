@@ -54,6 +54,25 @@ describe("GET /api/tweet/media", () => {
     await expect(response.text()).resolves.toBe("video-bytes");
   });
 
+  it("does not follow upstream redirects", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(
+        Response.redirect("https://example.com/elsewhere.mp4", 302)
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await GET({
+      request: new Request(
+        "http://localhost/api/tweet/media?url=https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F123%2Fvid%2Favc1%2F480x600%2Ftweet.mp4"
+      ),
+      locals: createLocals(),
+    } as never);
+
+    const upstreamInit = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+    expect(upstreamInit.redirect).toBe("error");
+  });
+
   it("rejects non-twitter media urls", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
