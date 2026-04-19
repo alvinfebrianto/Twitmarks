@@ -77,7 +77,7 @@ vi.mock("react-tweet", async () => {
     TweetNotFound,
     TweetReplies,
     TweetSkeleton,
-    useTweet: () => ({ data: undefined, error: undefined, isLoading: false }),
+    useTweet: vi.fn(() => ({ data: null, error: null, isLoading: false })),
   };
 });
 
@@ -134,6 +134,118 @@ describe("CustomEmbeddedTweet", () => {
       screen.queryByRole("button", { name: "Copy link" })
     ).not.toBeInTheDocument();
     expect(screen.queryByText(READ_REPLIES_RE)).not.toBeInTheDocument();
+  });
+
+  it("renders a playable inline video through the tweet media proxy", () => {
+    const { container } = render(
+      <CustomEmbeddedTweet
+        tweet={
+          {
+            __typename: "Tweet",
+            id_str: "2044772304006377836",
+            lang: "en",
+            created_at: "2026-04-16T13:38:01.000Z",
+            display_text_range: [0, 149],
+            text: "Video tweet",
+            entities: {
+              hashtags: [],
+              urls: [],
+              user_mentions: [],
+              symbols: [],
+              media: [
+                {
+                  display_url: "pic.x.com/qg1AM1B4dS",
+                  expanded_url:
+                    "https://x.com/cavalry__app/status/2044772304006377836/video/1",
+                  indices: [126, 149],
+                  url: "https://t.co/qg1AM1B4dS",
+                },
+              ],
+            },
+            user: {
+              id_str: "1073199411348553729",
+              name: "Cavalry",
+              profile_image_url_https: "",
+              profile_image_shape: "Circle",
+              screen_name: "cavalry__app",
+              verified: false,
+              is_blue_verified: false,
+            },
+            edit_control: {
+              edit_tweet_ids: ["2044772304006377836"],
+              editable_until_msecs: "0",
+              is_edit_eligible: false,
+              edits_remaining: "0",
+            },
+            isEdited: false,
+            isStaleEdit: false,
+            favorite_count: 0,
+            conversation_count: 0,
+            news_action_type: "conversation",
+            mediaDetails: [
+              {
+                display_url: "pic.x.com/qg1AM1B4dS",
+                expanded_url:
+                  "https://x.com/cavalry__app/status/2044772304006377836/video/1",
+                ext_media_availability: { status: "Available" },
+                indices: [126, 149],
+                media_url_https:
+                  "https://pbs.twimg.com/amplify_video_thumb/2044772239510511616/img/SHO3N6631slhS7_H.jpg",
+                original_info: {
+                  height: 900,
+                  width: 720,
+                  focus_rects: [],
+                },
+                sizes: {
+                  large: { h: 900, resize: "fit", w: 720 },
+                  medium: { h: 900, resize: "fit", w: 720 },
+                  small: { h: 680, resize: "fit", w: 544 },
+                  thumb: { h: 150, resize: "crop", w: 150 },
+                },
+                type: "video",
+                url: "https://t.co/qg1AM1B4dS",
+                video_info: {
+                  aspect_ratio: [4, 5],
+                  duration_millis: 23_416,
+                  variants: [
+                    {
+                      content_type: "application/x-mpegURL",
+                      url: "https://video.twimg.com/amplify_video/2044772239510511616/pl/gsNGyUIFfXHrQ3sL.m3u8?v=cfc",
+                    },
+                    {
+                      bitrate: 632_000,
+                      content_type: "video/mp4",
+                      url: "https://video.twimg.com/amplify_video/2044772239510511616/vid/avc1/320x400/U5ek2JkYUjleV-qm.mp4",
+                    },
+                    {
+                      bitrate: 950_000,
+                      content_type: "video/mp4",
+                      url: "https://video.twimg.com/amplify_video/2044772239510511616/vid/avc1/480x600/6nv_EYIeV3EYqWQf.mp4",
+                    },
+                    {
+                      bitrate: 2_176_000,
+                      content_type: "video/mp4",
+                      url: "https://video.twimg.com/amplify_video/2044772239510511616/vid/avc1/720x900/1L4QMvB8e1UwdQ-i.mp4",
+                    },
+                  ],
+                },
+              },
+            ],
+          } as unknown as Parameters<typeof CustomEmbeddedTweet>[0]["tweet"]
+        }
+      />
+    );
+
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    expect(video).toHaveAttribute("controls");
+
+    const source = video?.querySelector("source");
+    expect(source).not.toBeNull();
+    expect(source).toHaveAttribute(
+      "src",
+      "/api/tweet/media?url=https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F2044772239510511616%2Fvid%2Favc1%2F480x600%2F6nv_EYIeV3EYqWQf.mp4"
+    );
   });
 
   it("renders tweet card metadata without fetching OG data again", () => {

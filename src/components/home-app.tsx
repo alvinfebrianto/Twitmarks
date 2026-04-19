@@ -12,7 +12,6 @@ import {
   TweetHeader,
   TweetInfo,
   TweetInReplyTo,
-  TweetMedia,
   TweetNotFound,
   TweetSkeleton,
   useTweet,
@@ -35,6 +34,7 @@ import {
   XIcon,
 } from "./icons";
 import "react-tweet/theme.css";
+import { buildTweetMediaProxyUrl } from "../lib/syndication";
 import type { DbTweet, TweetPhoto, UiTweet } from "../lib/tweet-helpers";
 import {
   extractTweetId,
@@ -437,12 +437,28 @@ function getSkeletonStyle(media: MediaDetails, itemCount: number) {
   };
 }
 
+function getPlayableVideoVariant(
+  media: Extract<MediaDetails, { type: "video" | "animated_gif" }>
+) {
+  const mp4Variants = media.video_info.variants
+    .filter((variant) => variant.content_type === "video/mp4")
+    .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
+
+  return mp4Variants.length > 1 ? mp4Variants[1] : (mp4Variants[0] ?? null);
+}
+
+function getMediaAltText(media: MediaDetails, fallback: string) {
+  return "ext_alt_text" in media && typeof media.ext_alt_text === "string"
+    ? media.ext_alt_text
+    : fallback;
+}
+
 const CustomTweetMedia = ({
   tweet,
   onImageClick,
 }: {
   tweet: ReturnType<typeof enrichTweet>;
-  onImageClick: (photos: TweetPhoto[], index: number) => void;
+  onImageClick?: (photos: TweetPhoto[], index: number) => void;
 }) => {
   const mediaDetails = tweet.mediaDetails;
   if (!mediaDetails?.length) {
@@ -486,29 +502,9 @@ const CustomTweetMedia = ({
           if (media.type === "photo") {
             const currentPhotoIndex = photoIndex;
             photoIndex++;
-            return (
-              <button
-                aria-label={media.ext_alt_text ?? "View image"}
-                className="react-tweet-media-btn"
-                key={media.media_url_https}
-                onClick={() => onImageClick(photos, currentPhotoIndex)}
-                style={{
-                  position: "relative",
-                  height: "100%",
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  border: "none",
-                  padding: 0,
-                  background: "none",
-                  textDecoration: "none",
-                  outlineStyle: "none",
-                  ...(length === 3 && i === 0 ? { gridRow: "span 2" } : {}),
-                }}
-                type="button"
-              >
+
+            const image = (
+              <>
                 <div
                   style={{
                     paddingBottom: `${String(getSkeletonStyle(media, length).paddingBottom)}`,
@@ -534,11 +530,55 @@ const CustomTweetMedia = ({
                   }}
                   width={media.original_info.width}
                 />
+              </>
+            );
+
+            const sharedStyle = {
+              position: "relative" as const,
+              height: "100%",
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              ...(length === 3 && i === 0 ? { gridRow: "span 2" } : {}),
+            };
+
+            if (!onImageClick) {
+              return (
+                <div key={media.media_url_https} style={sharedStyle}>
+                  {image}
+                </div>
+              );
+            }
+
+            return (
+              <button
+                aria-label={media.ext_alt_text ?? "View image"}
+                className="react-tweet-media-btn"
+                key={media.media_url_https}
+                onClick={() => onImageClick(photos, currentPhotoIndex)}
+                style={{
+                  ...sharedStyle,
+                  cursor: "pointer",
+                  border: "none",
+                  padding: 0,
+                  background: "none",
+                  textDecoration: "none",
+                  outlineStyle: "none",
+                }}
+                type="button"
+              >
+                {image}
               </button>
             );
           }
 
-          // For video/gif, render a non-interactive container (keep default behavior)
+          const playableVariant = getPlayableVideoVariant(media);
+          const isAnimatedGif = media.type === "animated_gif";
+          const playableVariantUrl = playableVariant
+            ? buildTweetMediaProxyUrl(playableVariant.url)
+            : null;
+
           return (
             <div
               key={media.media_url_https}
@@ -558,6 +598,53 @@ const CustomTweetMedia = ({
                   display: "block",
                 }}
               />
+
+              {playableVariant && playableVariantUrl ? (
+                <video
+                  autoPlay={isAnimatedGif}
+                  controls={!isAnimatedGif}
+                  loop={isAnimatedGif}
+                  muted={isAnimatedGif}
+                  playsInline
+                  poster={getMediaUrl(media, "small")}
+                  preload={isAnimatedGif ? "auto" : "metadata"}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    height: "100%",
+                    width: "100%",
+                    margin: 0,
+                    objectFit: "cover",
+                    objectPosition: "center",
+                  }}
+                >
+                  <source
+                    src={playableVariantUrl}
+                    type={playableVariant.content_type}
+                  />
+                </video>
+              ) : (
+                <img
+                  alt={getMediaAltText(media, "Video preview")}
+                  draggable={false}
+                  height={media.original_info.height}
+                  src={getMediaUrl(media, "small")}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    height: "100%",
+                    width: "100%",
+                    margin: 0,
+                    objectFit: "cover",
+                    objectPosition: "center",
+                  }}
+                  width={media.original_info.width}
+                />
+              )}
             </div>
           );
         })}
@@ -607,17 +694,11 @@ export const CustomEmbeddedTweet = ({
   );
 
   const hasMedia = (tweet.mediaDetails?.length ?? 0) > 0;
-  const useCustomMedia =
-    hasMedia &&
-    onImageClick &&
-    tweet.mediaDetails?.every((m) => m.type === "photo");
+  const useCustomMedia = hasMedia;
 
   const renderMedia = () => {
     if (useCustomMedia) {
       return <CustomTweetMedia onImageClick={onImageClick} tweet={tweet} />;
-    }
-    if (hasMedia) {
-      return <TweetMedia tweet={tweet} />;
     }
     return null;
   };
