@@ -47,6 +47,7 @@ async function handleMediaRequest(request: Request): Promise<Response> {
 
   try {
     const upstreamResponse = await fetch(mediaUrl, {
+      method: request.method,
       headers: upstreamHeaders,
       signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
     });

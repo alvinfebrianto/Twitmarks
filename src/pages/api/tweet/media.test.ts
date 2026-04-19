@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLocals } from "../../../test/mock-db";
-import { GET } from "./media";
+import { GET, HEAD } from "./media";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -67,5 +67,38 @@ describe("GET /api/tweet/media", () => {
 
     expect(response.status).toBe(400);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("forwards HEAD requests upstream without downloading the body", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 200,
+        headers: {
+          "Accept-Ranges": "bytes",
+          "Content-Length": "11",
+          "Content-Type": "video/mp4",
+        },
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await HEAD({
+      request: new Request(
+        "http://localhost/api/tweet/media?url=https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F123%2Fvid%2Favc1%2F480x600%2Ftweet.mp4",
+        {
+          method: "HEAD",
+        }
+      ),
+      locals: createLocals(),
+    } as never);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const upstreamInit = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+    expect(upstreamInit.method).toBe("HEAD");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("video/mp4");
+    await expect(response.text()).resolves.toBe("");
   });
 });
