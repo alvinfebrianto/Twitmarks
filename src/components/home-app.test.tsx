@@ -16,9 +16,9 @@ import type { DbTweet } from "../lib/tweet-helpers";
 
 vi.mock("react-tweet", () => ({
   enrichTweet: vi.fn((tweet: unknown) => ({
-    ...(tweet as object),
+    ...(tweet as { mediaDetails?: unknown[] }),
     entities: [],
-    mediaDetails: [],
+    mediaDetails: (tweet as { mediaDetails?: unknown[] }).mediaDetails ?? [],
   })),
   getMediaUrl: vi.fn(() => ""),
   QuotedTweet: () => null,

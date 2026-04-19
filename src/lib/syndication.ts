@@ -1,4 +1,6 @@
 const SYNDICATION_URL = "https://cdn.syndication.twimg.com";
+const TWEET_MEDIA_HOSTNAME = "video.twimg.com";
+const TWEET_MEDIA_PROXY_PATH = "/api/tweet/media";
 
 const SYNDICATION_FEATURES = [
   "tfw_timeline_list:",
@@ -43,4 +45,34 @@ export function buildSyndicationRequestInit(timeoutMs = 5000): RequestInit {
     },
     signal: AbortSignal.timeout(timeoutMs),
   };
+}
+
+export function parseTweetMediaUrl(input: string): URL | null {
+  let url: URL;
+
+  try {
+    url = new URL(input);
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== "https:") {
+    return null;
+  }
+
+  if (url.username || url.password) {
+    return null;
+  }
+
+  return url.hostname === TWEET_MEDIA_HOSTNAME ? url : null;
+}
+
+export function buildTweetMediaProxyUrl(mediaUrl: string): string {
+  const parsedUrl = parseTweetMediaUrl(mediaUrl);
+
+  if (!parsedUrl) {
+    return mediaUrl;
+  }
+
+  return `${TWEET_MEDIA_PROXY_PATH}?url=${encodeURIComponent(parsedUrl.toString())}`;
 }
