@@ -1,12 +1,17 @@
 import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
+import { getDbOrThrow } from "../../../lib/db";
 import { ensureEvlogError } from "../../../lib/evlog";
-import { parseTweetMediaUrl } from "../../../lib/syndication";
+import {
+  parseTweetMediaUrl,
+  verifyTweetMediaProxyRequest,
+} from "../../../lib/syndication";
 
 export const prerender = false;
 
 const FORWARDED_REQUEST_HEADERS = [
   "Accept",
+  "If-Range",
   "If-Modified-Since",
   "If-None-Match",
   "Range",
@@ -23,19 +28,42 @@ const FORWARDED_RESPONSE_HEADERS = [
 const PROXY_TIMEOUT_MS = 10_000;
 const DEFAULT_CACHE_CONTROL_HEADER = "public, max-age=604800, s-maxage=604800";
 
-async function handleMediaRequest(request: Request): Promise<Response> {
+async function handleMediaRequest(
+  request: Request,
+  locals: App.Locals
+): Promise<Response> {
   const log = createWorkersLogger(request);
-  const mediaUrl = parseTweetMediaUrl(
+  const requestedMediaUrl = parseTweetMediaUrl(
     new URL(request.url).searchParams.get("url") ?? ""
   );
 
-  if (!mediaUrl) {
+  if (!requestedMediaUrl) {
     log.set({ tweetMedia: { valid: false } });
     log.emit({ status: 400 });
     return new Response(null, { status: 400 });
   }
 
-  log.set({ tweetMedia: { host: mediaUrl.hostname, valid: true } });
+  const mediaUrl = await verifyTweetMediaProxyRequest(
+    request,
+    getDbOrThrow(locals),
+    locals.runtime.env.ADMIN_SECRET
+  );
+
+  if (!mediaUrl) {
+    log.set({
+      tweetMedia: {
+        authorized: false,
+        host: requestedMediaUrl.hostname,
+        valid: true,
+      },
+    });
+    log.emit({ status: 403 });
+    return new Response(null, { status: 403 });
+  }
+
+  log.set({
+    tweetMedia: { authorized: true, host: mediaUrl.hostname, valid: true },
+  });
 
   const upstreamHeaders = new Headers();
   for (const header of FORWARDED_REQUEST_HEADERS) {
@@ -88,6 +116,7 @@ async function handleMediaRequest(request: Request): Promise<Response> {
   }
 }
 
-export const GET: APIRoute = async ({ request }) => handleMediaRequest(request);
-export const HEAD: APIRoute = async ({ request }) =>
-  handleMediaRequest(request);
+export const GET: APIRoute = async ({ request, locals }) =>
+  handleMediaRequest(request, locals);
+export const HEAD: APIRoute = async ({ request, locals }) =>
+  handleMediaRequest(request, locals);

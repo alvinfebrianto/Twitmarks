@@ -43,6 +43,39 @@ const STORED_TWEET_DATA = {
   news_action_type: "conversation",
 } as const;
 
+const STORED_TWEET_DATA_WITH_VIDEO = {
+  ...STORED_TWEET_DATA,
+  mediaDetails: [
+    {
+      media_url_https:
+        "https://pbs.twimg.com/ext_tw_video_thumb/123/pu/img/poster.jpg",
+      original_info: { width: 720, height: 900 },
+      sizes: {
+        large: { h: 900, resize: "fit", w: 720 },
+        medium: { h: 900, resize: "fit", w: 720 },
+        small: { h: 680, resize: "fit", w: 544 },
+        thumb: { h: 150, resize: "crop", w: 150 },
+      },
+      type: "video",
+      video_info: {
+        aspect_ratio: [4, 5],
+        duration_millis: 10_000,
+        variants: [
+          {
+            bitrate: 632_000,
+            content_type: "video/mp4",
+            url: "https://video.twimg.com/ext_tw_video/123/pu/vid/avc1/320x400/tweet.mp4",
+          },
+        ],
+      },
+    },
+  ],
+} as const;
+
+function getSignedProxyUrl(actual: string) {
+  return new URL(actual, "http://localhost");
+}
+
 beforeEach(() => {
   vi.useRealTimers();
 });
@@ -169,6 +202,50 @@ describe("POST /api/tweets", () => {
     );
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(new Headers(init.headers).get("user-agent")).toContain("Twitmarks");
+  });
+
+  it("returns newly stored tweet video urls as signed proxy links", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-20T12:00:00.000Z"));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(STORED_TWEET_DATA_WITH_VIDEO),
+      })
+    );
+
+    const db = createMockDB();
+    const locals = createLocals({ db });
+    const request = await createPostRequest(
+      { embed_html: "https://x.com/brfootball/status/2035915492200677484" },
+      db as never
+    );
+
+    const response = await POST({ request, locals } as never);
+
+    expect(response.status).toBe(201);
+
+    const json = (await response.json()) as {
+      tweet_data: {
+        mediaDetails?: Array<{
+          video_info?: { variants?: Array<{ url: string }> };
+        }>;
+      };
+    };
+
+    const proxyUrl = getSignedProxyUrl(
+      json.tweet_data.mediaDetails?.[0]?.video_info?.variants?.[0]?.url ?? ""
+    );
+
+    expect(proxyUrl.pathname).toBe("/api/tweet/media");
+    expect(proxyUrl.searchParams.get("url")).toBe(
+      "https://video.twimg.com/ext_tw_video/123/pu/vid/avc1/320x400/tweet.mp4"
+    );
+    expect(proxyUrl.searchParams.get("exp")).toBeTruthy();
+    expect(proxyUrl.searchParams.get("sig")).toBeTruthy();
   });
 
   it("invalidates the cached list after inserting a tweet", async () => {
@@ -526,6 +603,48 @@ describe("GET /api/tweets", () => {
       },
       { id: 2, embed_html: "https://x.com/user/status/2", tweet_data: null },
     ]);
+  });
+
+  it("rewrites stored tweet video urls to signed proxy links", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-20T12:00:00.000Z"));
+
+    const tweets = [
+      {
+        id: 1,
+        embed_html: "https://x.com/user/status/1",
+        tweet_json: JSON.stringify(STORED_TWEET_DATA_WITH_VIDEO),
+      },
+    ];
+    const db = createMockDB({ results: tweets });
+    const locals = createLocals({ db });
+
+    const response = await GET({
+      request: createGetRequest(),
+      locals,
+    } as never);
+
+    expect(response.status).toBe(200);
+
+    const json = (await response.json()) as Array<{
+      tweet_data?: {
+        mediaDetails?: Array<{
+          video_info?: { variants?: Array<{ url: string }> };
+        }>;
+      } | null;
+    }>;
+
+    const proxyUrl = getSignedProxyUrl(
+      json[0]?.tweet_data?.mediaDetails?.[0]?.video_info?.variants?.[0]?.url ??
+        ""
+    );
+
+    expect(proxyUrl.pathname).toBe("/api/tweet/media");
+    expect(proxyUrl.searchParams.get("url")).toBe(
+      "https://video.twimg.com/ext_tw_video/123/pu/vid/avc1/320x400/tweet.mp4"
+    );
+    expect(proxyUrl.searchParams.get("exp")).toBeTruthy();
+    expect(proxyUrl.searchParams.get("sig")).toBeTruthy();
   });
 
   it("does not bootstrap admin or rate-limit tables on public reads", async () => {

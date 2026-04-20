@@ -442,9 +442,9 @@ function getPlayableVideoVariant(
 ) {
   const mp4Variants = media.video_info.variants
     .filter((variant) => variant.content_type === "video/mp4")
-    .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
+    .sort((a, b) => (a.bitrate ?? 0) - (b.bitrate ?? 0));
 
-  return mp4Variants.length > 1 ? mp4Variants[1] : (mp4Variants[0] ?? null);
+  return mp4Variants[0] ?? null;
 }
 
 function getMediaAltText(media: MediaDetails, fallback: string) {

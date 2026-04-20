@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createTweetMediaProxySigner } from "../../../lib/syndication";
 import { createLocals } from "../../../test/mock-db";
 import { GET, HEAD } from "./media";
 
@@ -7,6 +8,23 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+
+async function createSignedMediaRequest(
+  mediaUrl: string,
+  init?: RequestInit
+): Promise<{ locals: App.Locals; request: Request }> {
+  const locals = createLocals();
+  const signTweetMediaUrl = await createTweetMediaProxySigner(
+    locals.runtime.env.DB,
+    locals.runtime.env.ADMIN_SECRET
+  );
+  const signedPath = await signTweetMediaUrl(mediaUrl);
+
+  return {
+    locals,
+    request: new Request(`http://localhost${signedPath}`, init),
+  };
+}
 
 describe("GET /api/tweet/media", () => {
   it("proxies twitter video responses and forwards range requests", async () => {
@@ -26,16 +44,19 @@ describe("GET /api/tweet/media", () => {
     );
     vi.stubGlobal("fetch", fetchSpy);
 
+    const { locals, request } = await createSignedMediaRequest(
+      "https://video.twimg.com/amplify_video/123/vid/avc1/480x600/tweet.mp4",
+      {
+        headers: {
+          Range: "bytes=0-10",
+          "If-Range": '"tweet-video"',
+        },
+      }
+    );
+
     const response = await GET({
-      request: new Request(
-        "http://localhost/api/tweet/media?url=https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F123%2Fvid%2Favc1%2F480x600%2Ftweet.mp4",
-        {
-          headers: {
-            Range: "bytes=0-10",
-          },
-        }
-      ),
-      locals: createLocals(),
+      request,
+      locals,
     } as never);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -46,6 +67,9 @@ describe("GET /api/tweet/media", () => {
     const upstreamInit = fetchSpy.mock.calls[0]?.[1] as RequestInit;
     expect(upstreamInit.headers).toBeInstanceOf(Headers);
     expect((upstreamInit.headers as Headers).get("Range")).toBe("bytes=0-10");
+    expect((upstreamInit.headers as Headers).get("If-Range")).toBe(
+      '"tweet-video"'
+    );
     expect((upstreamInit.headers as Headers).get("Referer")).toBeNull();
 
     expect(response.status).toBe(206);
@@ -62,12 +86,11 @@ describe("GET /api/tweet/media", () => {
       );
     vi.stubGlobal("fetch", fetchSpy);
 
-    await GET({
-      request: new Request(
-        "http://localhost/api/tweet/media?url=https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F123%2Fvid%2Favc1%2F480x600%2Ftweet.mp4"
-      ),
-      locals: createLocals(),
-    } as never);
+    const { locals, request } = await createSignedMediaRequest(
+      "https://video.twimg.com/amplify_video/123/vid/avc1/480x600/tweet.mp4"
+    );
+
+    await GET({ request, locals } as never);
 
     const upstreamInit = fetchSpy.mock.calls[0]?.[1] as RequestInit;
     expect(upstreamInit.redirect).toBe("error");
@@ -88,6 +111,21 @@ describe("GET /api/tweet/media", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("rejects unsigned twitter media urls so the proxy cannot be used as a public relay", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await GET({
+      request: new Request(
+        "http://localhost/api/tweet/media?url=https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F123%2Fvid%2Favc1%2F480x600%2Ftweet.mp4"
+      ),
+      locals: createLocals(),
+    } as never);
+
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("forwards HEAD requests upstream without downloading the body", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(null, {
@@ -101,15 +139,14 @@ describe("GET /api/tweet/media", () => {
     );
     vi.stubGlobal("fetch", fetchSpy);
 
-    const response = await HEAD({
-      request: new Request(
-        "http://localhost/api/tweet/media?url=https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F123%2Fvid%2Favc1%2F480x600%2Ftweet.mp4",
-        {
-          method: "HEAD",
-        }
-      ),
-      locals: createLocals(),
-    } as never);
+    const { locals, request } = await createSignedMediaRequest(
+      "https://video.twimg.com/amplify_video/123/vid/avc1/480x600/tweet.mp4",
+      {
+        method: "HEAD",
+      }
+    );
+
+    const response = await HEAD({ request, locals } as never);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 

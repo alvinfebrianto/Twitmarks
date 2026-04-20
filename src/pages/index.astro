@@ -4,6 +4,10 @@ import { createWorkersLogger } from "evlog/workers";
 import { hasAdminSession } from "../lib/admin-session";
 import { getDbOrThrow } from "../lib/db";
 import { ensureEvlogError } from "../lib/evlog";
+import {
+  createTweetMediaProxySigner,
+  rewriteTweetMediaUrls,
+} from "../lib/syndication";
 import type { DbTweet } from "../lib/tweet-helpers";
 import { parseStoredTweetData } from "../lib/tweet-snapshot";
 import { ensureTweetsSearchTextColumn } from "../lib/tweets-schema";
@@ -18,19 +22,28 @@ try {
   const db = getDbOrThrow(Astro.locals);
   await ensureTweetsSearchTextColumn(db);
   initialIsAdmin = await hasAdminSession(Astro.request, db);
+  const signTweetMediaUrl = await createTweetMediaProxySigner(
+    db,
+    Astro.locals.runtime.env.ADMIN_SECRET
+  );
 
   const result = await db
     .prepare("SELECT id, embed_html, search_text, tweet_json, sort_order, strftime('%Y-%m-%dT%H:%M:%fZ', created_at) AS created_at FROM tweets ORDER BY sort_order ASC, id ASC")
     .all<Record<string, unknown>>();
   const rows: Record<string, unknown>[] = result.results ?? [];
-  const tweets = rows.map((row: Record<string, unknown>) => {
-    const { tweet_json: tweetJson, ...tweet } = row;
+  const tweets = await Promise.all(
+    rows.map(async (row: Record<string, unknown>) => {
+      const { tweet_json: tweetJson, ...tweet } = row;
 
-    return {
-      ...tweet,
-      tweet_data: parseStoredTweetData(tweetJson),
-    } as DbTweet;
-  });
+      return {
+        ...tweet,
+        tweet_data: await rewriteTweetMediaUrls(
+          parseStoredTweetData(tweetJson),
+          signTweetMediaUrl
+        ),
+      } as DbTweet;
+    })
+  );
   initialTweets = tweets;
   log.set({ page: { route: "/", tweetCount: tweets.length } });
   log.emit({ status: 200 });

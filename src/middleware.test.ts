@@ -12,6 +12,9 @@ describe("applySecurityHeaders", () => {
     expect(response.headers.get("Content-Security-Policy")).toContain(
       "script-src 'self' 'unsafe-inline' https://platform.twitter.com"
     );
+    expect(response.headers.get("Content-Security-Policy")).not.toContain(
+      "https://video.twimg.com"
+    );
     expect(response.headers.get("Strict-Transport-Security")).toContain(
       "max-age=63072000"
     );
