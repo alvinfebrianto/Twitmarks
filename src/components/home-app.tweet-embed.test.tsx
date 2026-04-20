@@ -136,7 +136,7 @@ describe("CustomEmbeddedTweet", () => {
     expect(screen.queryByText(READ_REPLIES_RE)).not.toBeInTheDocument();
   });
 
-  it("renders a playable inline video through the tweet media proxy", () => {
+  it("renders a playable inline video through the tweet media proxy using the lowest bitrate mp4", () => {
     const { container } = render(
       <CustomEmbeddedTweet
         tweet={
@@ -244,7 +244,7 @@ describe("CustomEmbeddedTweet", () => {
     expect(source).not.toBeNull();
     expect(source).toHaveAttribute(
       "src",
-      "/api/tweet/media?url=https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F2044772239510511616%2Fvid%2Favc1%2F480x600%2F6nv_EYIeV3EYqWQf.mp4"
+      "/api/tweet/media?url=https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F2044772239510511616%2Fvid%2Favc1%2F320x400%2FU5ek2JkYUjleV-qm.mp4"
     );
   });
 

@@ -1,17 +1,20 @@
 import type { APIRoute } from "astro";
 import { createWorkersLogger } from "evlog/workers";
+import { getDbOrThrow } from "../../../lib/db";
 import { ensureEvlogError } from "../../../lib/evlog";
 import { enrichNoteTweet } from "../../../lib/note-tweet";
 import {
   buildSyndicationRequestInit,
   buildSyndicationUrl,
+  createTweetMediaProxySigner,
+  rewriteTweetMediaUrls,
 } from "../../../lib/syndication";
 
 export const prerender = false;
 
 const TWEET_ID_RE = /^\d{1,20}$/;
 const CACHE_CONTROL_HEADER = "public, max-age=3600, s-maxage=3600";
-const TWEET_CACHE_VERSION = "3";
+const TWEET_CACHE_VERSION = "4";
 
 function getEdgeCache() {
   if (typeof caches === "undefined") {
@@ -40,6 +43,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
   log.set({ tweet: { id } });
 
   const url = buildSyndicationUrl(id);
+  const db = getDbOrThrow(locals);
 
   try {
     const cache = getEdgeCache();
@@ -78,11 +82,19 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
     }
 
     const enriched = await enrichNoteTweet(data);
+    const signTweetMediaUrl = await createTweetMediaProxySigner(
+      db,
+      locals.runtime.env.ADMIN_SECRET
+    );
+    const signedTweet = await rewriteTweetMediaUrls(
+      enriched,
+      signTweetMediaUrl
+    );
 
     log.set({ tweet: { found: true, noteTweetEnriched: enriched !== data } });
     log.emit({ status: 200 });
 
-    const response = new Response(JSON.stringify({ data: enriched }), {
+    const response = new Response(JSON.stringify({ data: signedTweet }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",

@@ -30,7 +30,7 @@ export function buildCsp(): string {
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https:",
     "frame-src https://platform.twitter.com https://syndication.twitter.com",
-    "media-src 'self' https://video.twimg.com https://pbs.twimg.com",
+    "media-src 'self' https://pbs.twimg.com",
   ].join("; ");
 }
 

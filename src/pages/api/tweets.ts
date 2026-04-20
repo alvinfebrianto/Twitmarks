@@ -5,6 +5,10 @@ import { getDbOrThrow } from "../../lib/db";
 import { ensureEvlogError, errors, errorToObject } from "../../lib/evlog";
 import { readJsonObject } from "../../lib/request-body";
 import {
+  createTweetMediaProxySigner,
+  rewriteTweetMediaUrls,
+} from "../../lib/syndication";
+import {
   fetchTweetSnapshot,
   parseStoredTweetData,
   serializeStoredTweetData,
@@ -150,6 +154,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await ensureTweetsSearchTextColumn(db);
     await requireAdminSession(request, db);
     requireJsonContentType(request);
+    const signTweetMediaUrl = await createTweetMediaProxySigner(
+      db,
+      locals.runtime.env.ADMIN_SECRET
+    );
 
     const body = await readJsonObject(request, MAX_TWEETS_BODY_BYTES);
 
@@ -222,7 +230,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         id: degradedTweet.id,
         embed_html: storedHtml,
         search_text: searchText,
-        tweet_data: tweetData,
+        tweet_data: await rewriteTweetMediaUrls(tweetData, signTweetMediaUrl),
         sort_order: degradedTweet.sort_order,
         created_at: degradedTweet.created_at,
         repaired: true,
@@ -259,7 +267,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         id: insertedId,
         embed_html: storedHtml,
         search_text: searchText,
-        tweet_data: tweetData,
+        tweet_data: await rewriteTweetMediaUrls(tweetData, signTweetMediaUrl),
         sort_order: sortOrder,
         created_at: createdAt,
         success: true,
@@ -291,6 +299,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
     const db = getDbOrThrow(locals);
     await ensureTweetsSearchTextColumn(db);
+    const signTweetMediaUrl = await createTweetMediaProxySigner(
+      db,
+      locals.runtime.env.ADMIN_SECRET
+    );
 
     const result = await db
       .prepare(
@@ -298,7 +310,19 @@ export const GET: APIRoute = async ({ request, locals }) => {
       )
       .all<Record<string, unknown>>();
 
-    const tweets = (result.results ?? []).map(mapTweetRow);
+    const tweets = await Promise.all(
+      (result.results ?? []).map(async (row: Record<string, unknown>) => {
+        const tweet = mapTweetRow(row);
+
+        return {
+          ...tweet,
+          tweet_data: await rewriteTweetMediaUrls(
+            tweet.tweet_data,
+            signTweetMediaUrl
+          ),
+        };
+      })
+    );
 
     const count = tweets.length;
     log.set({ tweets: { count } });

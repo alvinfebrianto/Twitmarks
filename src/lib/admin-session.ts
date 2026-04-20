@@ -56,7 +56,7 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-async function resolveConfiguredAdminSecretHash(
+export async function resolveConfiguredAdminSecretHash(
   db: Database,
   configuredSecret?: string
 ): Promise<string> {
