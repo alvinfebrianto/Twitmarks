@@ -72,7 +72,7 @@ export function AddTweetModal({
                 className="font-display font-semibold text-xl dark:text-zinc-50"
                 id="add-tweet-modal-title"
               >
-                Add Tweet URL
+                Add Tweet
               </h2>
               <button
                 aria-label="Close modal"
@@ -96,12 +96,6 @@ export function AddTweetModal({
               )}
 
               <div className="flex flex-col gap-2">
-                <label
-                  className="font-medium text-sm text-zinc-700 dark:text-zinc-300"
-                  htmlFor="embed-html"
-                >
-                  Tweet URL
-                </label>
                 <div className="relative">
                   <textarea
                     aria-label="Tweet URL"
@@ -140,9 +134,6 @@ export function AddTweetModal({
                     )}
                   </AnimatePresence>
                 </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Paste a public tweet URL from X or Twitter.
-                </p>
               </div>
 
               <div className="mt-2 flex gap-3">
