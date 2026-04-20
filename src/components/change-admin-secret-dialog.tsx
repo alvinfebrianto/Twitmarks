@@ -83,9 +83,6 @@ export function ChangeAdminSecretDialog({
                 >
                   Change Admin Secret
                 </h2>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                  Save a new admin secret without touching Cloudflare secrets.
-                </p>
               </div>
               <button
                 aria-label="Close change secret dialog"
