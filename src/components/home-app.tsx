@@ -1457,7 +1457,7 @@ export default function App({
         </div>
       </div>
 
-      <main className="mx-auto max-w-[1400px] px-4 pt-8 pb-32 md:px-8">
+      <main className="mx-auto max-w-[1400px] px-4 pt-4 pb-32 md:px-8">
         <div className="grid grid-cols-1 items-start gap-6">
           <div>
             {loading && (
