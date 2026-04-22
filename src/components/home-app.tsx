@@ -437,12 +437,74 @@ function getSkeletonStyle(media: MediaDetails, itemCount: number) {
   };
 }
 
+const TWEET_PREFERRED_VIDEO_BASE_RESOLUTION = 720;
+const VIDEO_VARIANT_DIMENSIONS_RE = /\/(\d+)x(\d+)\//;
+
+function getVideoVariantBaseResolution(variantUrl: string): number | null {
+  const candidateUrl = (() => {
+    try {
+      const parsedUrl = new URL(variantUrl, "http://localhost");
+      return parsedUrl.searchParams.get("url") ?? variantUrl;
+    } catch {
+      return variantUrl;
+    }
+  })();
+
+  const matches = candidateUrl.match(VIDEO_VARIANT_DIMENSIONS_RE);
+  if (!(matches?.[1] && matches[2])) {
+    return null;
+  }
+
+  const width = Number(matches[1]);
+  const height = Number(matches[2]);
+
+  return Number.isFinite(width) && Number.isFinite(height)
+    ? Math.min(width, height)
+    : null;
+}
+
 function getPlayableVideoVariant(
   media: Extract<MediaDetails, { type: "video" | "animated_gif" }>
 ) {
   const mp4Variants = media.video_info.variants
     .filter((variant) => variant.content_type === "video/mp4")
-    .sort((a, b) => (a.bitrate ?? 0) - (b.bitrate ?? 0));
+    .sort((a, b) => {
+      const aResolution = getVideoVariantBaseResolution(a.url);
+      const bResolution = getVideoVariantBaseResolution(b.url);
+
+      const getTier = (resolution: number | null) => {
+        if (resolution === TWEET_PREFERRED_VIDEO_BASE_RESOLUTION) {
+          return 0;
+        }
+
+        if (resolution === null) {
+          return 3;
+        }
+
+        return resolution < TWEET_PREFERRED_VIDEO_BASE_RESOLUTION ? 1 : 2;
+      };
+
+      const tierDiff = getTier(aResolution) - getTier(bResolution);
+      if (tierDiff !== 0) {
+        return tierDiff;
+      }
+
+      if (aResolution !== bResolution) {
+        if (aResolution === null) {
+          return 1;
+        }
+
+        if (bResolution === null) {
+          return -1;
+        }
+
+        return getTier(aResolution) === 2
+          ? aResolution - bResolution
+          : bResolution - aResolution;
+      }
+
+      return (a.bitrate ?? 0) - (b.bitrate ?? 0);
+    });
 
   return mp4Variants[0] ?? null;
 }

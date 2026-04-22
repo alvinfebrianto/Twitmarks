@@ -7,6 +7,7 @@ import { GET, HEAD } from "./media";
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 async function createSignedMediaRequest(
@@ -27,6 +28,93 @@ async function createSignedMediaRequest(
 }
 
 describe("GET /api/tweet/media", () => {
+  it("sends a Twitmarks user-agent when proxying twitter media upstream", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response("video-bytes", {
+        status: 200,
+        headers: {
+          "Content-Type": "video/mp4",
+        },
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { locals, request } = await createSignedMediaRequest(
+      "https://video.twimg.com/amplify_video/123/vid/avc1/480x600/tweet.mp4"
+    );
+
+    const response = await GET({ request, locals } as never);
+
+    expect(response.status).toBe(200);
+
+    const upstreamInit = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+    expect(upstreamInit.headers).toBeInstanceOf(Headers);
+    expect((upstreamInit.headers as Headers).get("User-Agent")).toContain(
+      "Twitmarks/1.0"
+    );
+  });
+
+  it("keeps streaming media after the upstream response headers have already arrived", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+      const controller = new AbortController();
+      setTimeout(() => {
+        controller.abort();
+      }, 10_000);
+      return controller.signal;
+    });
+
+    const encoder = new TextEncoder();
+    const fetchSpy = vi
+      .fn()
+      .mockImplementation((_input, init?: RequestInit) => {
+        const signal = init?.signal;
+        const stream = new ReadableStream({
+          start(controller) {
+            let aborted = false;
+
+            signal?.addEventListener("abort", () => {
+              aborted = true;
+              controller.error(
+                new DOMException("stream aborted", "AbortError")
+              );
+            });
+
+            setTimeout(() => {
+              if (aborted) {
+                return;
+              }
+
+              controller.enqueue(encoder.encode("video-bytes"));
+              controller.close();
+            }, 11_000);
+          },
+        });
+
+        return Promise.resolve(
+          new Response(stream, {
+            status: 206,
+            headers: {
+              "Accept-Ranges": "bytes",
+              "Content-Range": "bytes 0-10/11",
+              "Content-Type": "video/mp4",
+            },
+          })
+        );
+      });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { locals, request } = await createSignedMediaRequest(
+      "https://video.twimg.com/amplify_video/123/vid/avc1/480x600/tweet.mp4"
+    );
+
+    const response = await GET({ request, locals } as never);
+
+    await vi.advanceTimersByTimeAsync(11_000);
+
+    await expect(response.text()).resolves.toBe("video-bytes");
+  });
+
   it("proxies twitter video responses and forwards range requests", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response("video-bytes", {
@@ -78,7 +166,7 @@ describe("GET /api/tweet/media", () => {
     await expect(response.text()).resolves.toBe("video-bytes");
   });
 
-  it("does not follow upstream redirects", async () => {
+  it("returns 502 when the upstream media url responds with a redirect", async () => {
     const fetchSpy = vi
       .fn()
       .mockResolvedValue(
@@ -90,10 +178,9 @@ describe("GET /api/tweet/media", () => {
       "https://video.twimg.com/amplify_video/123/vid/avc1/480x600/tweet.mp4"
     );
 
-    await GET({ request, locals } as never);
+    const response = await GET({ request, locals } as never);
 
-    const upstreamInit = fetchSpy.mock.calls[0]?.[1] as RequestInit;
-    expect(upstreamInit.redirect).toBe("error");
+    expect(response.status).toBe(502);
   });
 
   it("rejects non-twitter media urls", async () => {
