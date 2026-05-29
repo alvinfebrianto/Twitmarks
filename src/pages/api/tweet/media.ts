@@ -27,6 +27,17 @@ const FORWARDED_RESPONSE_HEADERS = [
 ] as const;
 const PROXY_TIMEOUT_MS = 10_000;
 const DEFAULT_CACHE_CONTROL_HEADER = "public, max-age=604800, s-maxage=604800";
+const MEDIA_PROXY_USER_AGENT =
+  "Mozilla/5.0 (compatible; Twitmarks/1.0; +https://twitmarks.alvinpelajar.workers.dev)";
+
+function getProxyFetchErrorDetails(error: unknown) {
+  return error instanceof Error
+    ? {
+        errorMessage: error.message,
+        errorName: error.name,
+      }
+    : { errorMessage: String(error), errorName: typeof error };
+}
 
 async function handleMediaRequest(
   request: Request,
@@ -66,6 +77,8 @@ async function handleMediaRequest(
   });
 
   const upstreamHeaders = new Headers();
+  upstreamHeaders.set("User-Agent", MEDIA_PROXY_USER_AGENT);
+
   for (const header of FORWARDED_REQUEST_HEADERS) {
     const value = request.headers.get(header);
     if (value) {
@@ -74,15 +87,50 @@ async function handleMediaRequest(
   }
 
   try {
-    const upstreamResponse = await fetch(mediaUrl, {
-      method: request.method,
-      headers: upstreamHeaders,
-      redirect: "error",
-      signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
-    });
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, PROXY_TIMEOUT_MS);
+
+    let upstreamResponse: Response;
+    try {
+      upstreamResponse = await fetch(mediaUrl, {
+        method: request.method,
+        headers: upstreamHeaders,
+        redirect: "manual",
+        signal: abortController.signal,
+      });
+    } catch (error) {
+      log.set({
+        tweetMedia: {
+          fetchFailed: true,
+          ...getProxyFetchErrorDetails(error),
+        },
+      });
+
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (upstreamResponse.status >= 300 && upstreamResponse.status < 400) {
+      log.set({
+        tweetMedia: {
+          location: upstreamResponse.headers.get("Location"),
+          status: upstreamResponse.status,
+        },
+      });
+      log.emit({ status: 502 });
+      return new Response(null, { status: 502 });
+    }
+
     const responseHeaders = new Headers();
 
     for (const header of FORWARDED_RESPONSE_HEADERS) {
+      if (header === "Content-Length" && request.method !== "HEAD") {
+        continue;
+      }
+
       const value = upstreamResponse.headers.get(header);
       if (value) {
         responseHeaders.set(header, value);
@@ -101,11 +149,14 @@ async function handleMediaRequest(
     });
     log.emit({ status: upstreamResponse.status });
 
-    return new Response(upstreamResponse.body, {
-      headers: responseHeaders,
-      status: upstreamResponse.status,
-      statusText: upstreamResponse.statusText,
-    });
+    return new Response(
+      request.method === "HEAD" ? null : upstreamResponse.body,
+      {
+        headers: responseHeaders,
+        status: upstreamResponse.status,
+        statusText: upstreamResponse.statusText,
+      }
+    );
   } catch (error) {
     const evlogError = ensureEvlogError(error, "Failed to proxy tweet media");
 

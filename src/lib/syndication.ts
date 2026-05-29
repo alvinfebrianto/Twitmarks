@@ -90,6 +90,7 @@ export type TweetMediaProxySigner = (mediaUrl: string) => Promise<string>;
 interface TweetMediaNode {
   mediaDetails?: Tweet["mediaDetails"];
   quoted_tweet?: TweetMediaNode | null;
+  video?: Tweet["video"];
 }
 
 function buildTweetMediaProxySignaturePayload(
@@ -229,6 +230,32 @@ async function rewriteTweetMediaDetails(
   return changed ? rewrittenMediaDetails : mediaDetails;
 }
 
+async function rewriteTweetVideo(
+  video: Tweet["video"],
+  signTweetMediaUrl: TweetMediaProxySigner
+): Promise<Tweet["video"]> {
+  if (!video?.variants?.length) {
+    return video;
+  }
+
+  let changed = false;
+  const rewrittenVariants: NonNullable<Tweet["video"]>["variants"] = [];
+
+  for (const variant of video.variants) {
+    const nextSrc = await signTweetMediaUrl(variant.src);
+
+    if (nextSrc !== variant.src) {
+      changed = true;
+    }
+
+    rewrittenVariants.push(
+      nextSrc === variant.src ? variant : { ...variant, src: nextSrc }
+    );
+  }
+
+  return changed ? { ...video, variants: rewrittenVariants } : video;
+}
+
 export async function rewriteTweetMediaUrls<T extends TweetMediaNode | null>(
   tweet: T,
   signTweetMediaUrl: TweetMediaProxySigner
@@ -237,8 +264,9 @@ export async function rewriteTweetMediaUrls<T extends TweetMediaNode | null>(
     return tweet;
   }
 
-  const [mediaDetails, quotedTweet] = await Promise.all([
+  const [mediaDetails, video, quotedTweet] = await Promise.all([
     rewriteTweetMediaDetails(tweet.mediaDetails, signTweetMediaUrl),
+    rewriteTweetVideo(tweet.video, signTweetMediaUrl),
     tweet.quoted_tweet
       ? rewriteTweetMediaUrls(tweet.quoted_tweet, signTweetMediaUrl)
       : Promise.resolve(tweet.quoted_tweet),
@@ -246,6 +274,7 @@ export async function rewriteTweetMediaUrls<T extends TweetMediaNode | null>(
 
   if (
     mediaDetails === tweet.mediaDetails &&
+    video === tweet.video &&
     quotedTweet === tweet.quoted_tweet
   ) {
     return tweet;
@@ -254,6 +283,7 @@ export async function rewriteTweetMediaUrls<T extends TweetMediaNode | null>(
   return {
     ...tweet,
     mediaDetails,
+    video,
     quoted_tweet: quotedTweet,
   };
 }

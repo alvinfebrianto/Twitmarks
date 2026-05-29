@@ -31,6 +31,21 @@ const UPSTREAM_TWEET_WITH_VIDEO = {
       },
     },
   ],
+  video: {
+    aspectRatio: [4, 5],
+    contentType: "media_entity",
+    durationMs: 10_000,
+    mediaAvailability: { status: "available" },
+    poster: "https://pbs.twimg.com/ext_tw_video_thumb/123/pu/img/poster.jpg",
+    variants: [
+      {
+        src: "https://video.twimg.com/ext_tw_video/123/pu/vid/avc1/320x400/tweet.mp4",
+        type: "video/mp4",
+      },
+    ],
+    videoId: { id: "123", type: "tweet" },
+    viewCount: 0,
+  },
 } as const;
 
 function getSignedProxyUrl(actual: string) {
@@ -159,11 +174,15 @@ describe("GET /api/tweet/[id]", () => {
         mediaDetails?: Array<{
           video_info?: { variants?: Array<{ url: string }> };
         }>;
+        video?: { variants?: Array<{ src: string }> };
       };
     };
 
     const proxyUrl = getSignedProxyUrl(
       json.data.mediaDetails?.[0]?.video_info?.variants?.[0]?.url ?? ""
+    );
+    const topLevelProxyUrl = getSignedProxyUrl(
+      json.data.video?.variants?.[0]?.src ?? ""
     );
 
     expect(proxyUrl.pathname).toBe("/api/tweet/media");
@@ -172,6 +191,12 @@ describe("GET /api/tweet/[id]", () => {
     );
     expect(proxyUrl.searchParams.get("exp")).toBeTruthy();
     expect(proxyUrl.searchParams.get("sig")).toBeTruthy();
+    expect(topLevelProxyUrl.pathname).toBe("/api/tweet/media");
+    expect(topLevelProxyUrl.searchParams.get("url")).toBe(
+      "https://video.twimg.com/ext_tw_video/123/pu/vid/avc1/320x400/tweet.mp4"
+    );
+    expect(topLevelProxyUrl.searchParams.get("exp")).toBeTruthy();
+    expect(topLevelProxyUrl.searchParams.get("sig")).toBeTruthy();
   });
 
   it("returns 502 when the upstream rejects the syndication fetch", async () => {
