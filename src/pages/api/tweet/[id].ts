@@ -14,7 +14,7 @@ export const prerender = false;
 
 const TWEET_ID_RE = /^\d{1,20}$/;
 const CACHE_CONTROL_HEADER = "public, max-age=3600, s-maxage=3600";
-const TWEET_CACHE_VERSION = "4";
+const TWEET_CACHE_VERSION = "5";
 
 function getEdgeCache() {
   if (typeof caches === "undefined") {

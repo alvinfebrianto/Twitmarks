@@ -15,34 +15,66 @@ interface FullNoteTweet {
   text: string;
 }
 
-export async function enrichNoteTweet(tweet: Tweet): Promise<Tweet> {
-  if (!(tweet.note_tweet || isSuspiciousLongTweet(tweet))) {
+export function normalizeTweetEntities(tweet: Tweet): Tweet {
+  const current = (tweet.entities ?? {}) as Partial<Tweet["entities"]>;
+  const hashtags = Array.isArray(current.hashtags) ? current.hashtags : [];
+  const urls = Array.isArray(current.urls) ? current.urls : [];
+  const user_mentions = Array.isArray(current.user_mentions)
+    ? current.user_mentions
+    : [];
+  const symbols = Array.isArray(current.symbols) ? current.symbols : [];
+
+  if (
+    current.hashtags === hashtags &&
+    current.urls === urls &&
+    current.user_mentions === user_mentions &&
+    current.symbols === symbols
+  ) {
     return tweet;
+  }
+
+  return {
+    ...tweet,
+    entities: {
+      hashtags,
+      urls,
+      user_mentions,
+      symbols,
+      ...(current.media ? { media: current.media } : {}),
+    },
+  };
+}
+
+export async function enrichNoteTweet(tweet: Tweet): Promise<Tweet> {
+  const normalized = normalizeTweetEntities(tweet);
+
+  if (!(normalized.note_tweet || isSuspiciousLongTweet(normalized))) {
+    return normalized;
   }
 
   const stripNoteTweet = (t: Tweet): Tweet => ({ ...t, note_tweet: undefined });
 
   try {
-    const fullNoteTweet = await fetchFullTweetText(tweet.id_str);
+    const fullNoteTweet = await fetchFullTweetText(normalized.id_str);
 
     if (!fullNoteTweet) {
-      return tweet.note_tweet ? stripNoteTweet(tweet) : tweet;
+      return normalized.note_tweet ? stripNoteTweet(normalized) : normalized;
     }
 
-    if (!(tweet.note_tweet || hasRicherText(tweet, fullNoteTweet))) {
-      return tweet;
+    if (!(normalized.note_tweet || hasRicherText(normalized, fullNoteTweet))) {
+      return normalized;
     }
     const textChars = Array.from(fullNoteTweet.text);
 
     return {
-      ...tweet,
+      ...normalized,
       text: fullNoteTweet.text,
       display_text_range: fullNoteTweet.displayTextRange,
-      entities: remapEntities(tweet.entities, textChars),
+      entities: remapEntities(normalized.entities, textChars),
       note_tweet: undefined,
     };
   } catch {
-    return tweet.note_tweet ? stripNoteTweet(tweet) : tweet;
+    return normalized.note_tweet ? stripNoteTweet(normalized) : normalized;
   }
 }
 

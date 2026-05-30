@@ -1,6 +1,6 @@
 import type { Tweet } from "react-tweet/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { enrichNoteTweet } from "./note-tweet";
+import { enrichNoteTweet, normalizeTweetEntities } from "./note-tweet";
 
 function makeTweet(overrides: Partial<Tweet> = {}): Tweet {
   const text = overrides.text ?? "Hello world";
@@ -56,6 +56,28 @@ function mockFxTwitter(fullText: string) {
   );
 }
 
+describe("normalizeTweetEntities", () => {
+  it("fills in missing entity arrays when syndication returns an empty entities object", () => {
+    const tweet = makeTweet({
+      entities: {} as unknown as Tweet["entities"],
+    });
+
+    const result = normalizeTweetEntities(tweet);
+
+    expect(result.entities).toEqual({
+      hashtags: [],
+      urls: [],
+      user_mentions: [],
+      symbols: [],
+    });
+  });
+
+  it("preserves the original tweet reference when entities is already well-formed", () => {
+    const tweet = makeTweet();
+    expect(normalizeTweetEntities(tweet)).toBe(tweet);
+  });
+});
+
 describe("enrichNoteTweet", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -66,6 +88,19 @@ describe("enrichNoteTweet", () => {
     const tweet = makeTweet();
     const result = await enrichNoteTweet(tweet);
     expect(result).toBe(tweet);
+  });
+
+  it("normalizes a tweet whose syndication entities object is empty so downstream enrichTweet does not throw", async () => {
+    const tweet = makeTweet({
+      entities: {} as unknown as Tweet["entities"],
+    });
+
+    const result = await enrichNoteTweet(tweet);
+
+    expect(result.entities.hashtags).toEqual([]);
+    expect(result.entities.urls).toEqual([]);
+    expect(result.entities.user_mentions).toEqual([]);
+    expect(result.entities.symbols).toEqual([]);
   });
 
   it("does not call fetch when note_tweet is absent", async () => {
