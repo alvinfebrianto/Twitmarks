@@ -1,4 +1,8 @@
 {
+  "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
     "@astrojs/cloudflare": "^12.6.12",
@@ -9,6 +13,8 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.5.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",
     "agentation": "^2.2.1",
     "astro": "^5.18.0",
@@ -21,24 +27,25 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "deploy": "npm run build && wrangler deploy --keep-vars",
+    "deploy": "pnpm run build && wrangler deploy --keep-vars",
     "db:create": "wrangler d1 create twitmarks-db",
     "db:schema:local": "wrangler d1 execute twitmarks-db --local --persist-to ./.cache/wrangler/v3 --file=schema.sql",
     "db:schema:remote": "wrangler d1 execute twitmarks-db --remote --file=schema.sql",
-    "db:schema:all": "npm run db:schema:local && npm run db:schema:remote",
-    "db:init": "npm run db:schema:local",
-    "db:execute": "npm run db:schema:remote",
+    "db:schema:all": "pnpm run db:schema:local && pnpm run db:schema:remote",
+    "db:init": "pnpm run db:schema:local",
+    "db:execute": "pnpm run db:schema:remote",
     "lint:fix": "ultracite fix",
     "check": "astro check",
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "astro build",
-    "deploy:dry-run": "npm run build && wrangler deploy --dry-run --keep-vars"
+    "deploy:dry-run": "pnpm run build && wrangler deploy --dry-run --keep-vars"
   },
   "dependencies": {
     "evlog": "^2.1.0",
     "motion": "^12.34.3",
     "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "react-tweet": "^3.3.0"
   }
 }
