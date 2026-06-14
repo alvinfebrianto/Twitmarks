@@ -23,7 +23,7 @@
     "typescript": "^5.9.3",
     "ultracite": "^7.2.4",
     "vitest": "^4.0.18",
-    "wrangler": "^4.81.0"
+    "wrangler": "^4.100.0"
   },
   "scripts": {
     "dev": "astro dev",

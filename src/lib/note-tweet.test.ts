@@ -1,3 +1,4 @@
+import { enrichTweet } from "react-tweet";
 import type { Tweet } from "react-tweet/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { enrichNoteTweet, normalizeTweetEntities } from "./note-tweet";
@@ -70,6 +71,49 @@ describe("normalizeTweetEntities", () => {
       user_mentions: [],
       symbols: [],
     });
+  });
+
+  it("omits empty media entities so react-tweet enrichment does not throw", () => {
+    const tweet = makeTweet({
+      entities: {
+        hashtags: [],
+        urls: [],
+        user_mentions: [],
+        symbols: [],
+        media: [],
+      },
+    });
+
+    const result = normalizeTweetEntities(tweet);
+
+    expect(result.entities.media).toBeUndefined();
+    expect(() => enrichTweet(result)).not.toThrow();
+  });
+
+  it("normalizes quoted tweet entities before react-tweet enriches them", () => {
+    const quotedTweet = {
+      ...makeTweet({
+        id_str: "quoted-tweet",
+        entities: {
+          hashtags: [],
+          urls: [],
+          user_mentions: [],
+          symbols: [],
+          media: [],
+        },
+      }),
+      reply_count: 0,
+      retweet_count: 0,
+      self_thread: { id_str: "quoted-tweet" },
+    };
+    const tweet = makeTweet({
+      quoted_tweet: quotedTweet,
+    });
+
+    const result = normalizeTweetEntities(tweet);
+
+    expect(result.quoted_tweet?.entities.media).toBeUndefined();
+    expect(() => enrichTweet(result)).not.toThrow();
   });
 
   it("preserves the original tweet reference when entities is already well-formed", () => {

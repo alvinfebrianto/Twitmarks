@@ -1,5 +1,5 @@
 import type { Tweet } from "react-tweet/api";
-import { enrichNoteTweet } from "./note-tweet";
+import { enrichNoteTweet, normalizeTweetEntities } from "./note-tweet";
 import {
   buildSyndicationRequestInit,
   buildSyndicationUrl,
@@ -90,7 +90,7 @@ export function parseStoredTweetData(value: unknown): Tweet | null {
 
   try {
     const parsed = JSON.parse(value) as unknown;
-    return isTweetData(parsed) ? parsed : null;
+    return isTweetData(parsed) ? normalizeTweetEntities(parsed) : null;
   } catch {
     return null;
   }

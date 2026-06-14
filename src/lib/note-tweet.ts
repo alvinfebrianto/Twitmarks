@@ -1,4 +1,4 @@
-import type { Tweet } from "react-tweet/api";
+import type { QuotedTweet, Tweet } from "react-tweet/api";
 
 const NOTE_TWEET_SOURCE_URLS = [
   "https://api.fxtwitter.com/i/status",
@@ -15,20 +15,72 @@ interface FullNoteTweet {
   text: string;
 }
 
-export function normalizeTweetEntities(tweet: Tweet): Tweet {
+function hasValidEntityIndices(entity: unknown): boolean {
+  const maybeEntity = entity as { indices?: unknown };
+
+  return (
+    Array.isArray(maybeEntity.indices) &&
+    maybeEntity.indices.length === 2 &&
+    Number.isInteger(maybeEntity.indices[0]) &&
+    Number.isInteger(maybeEntity.indices[1])
+  );
+}
+
+function normalizeRequiredEntityArray<T>(value: T[] | undefined): {
+  changed: boolean;
+  items: T[];
+} {
+  if (!Array.isArray(value)) {
+    return { changed: true, items: [] };
+  }
+
+  const items = value.filter(hasValidEntityIndices);
+  return items.length === value.length
+    ? { changed: false, items: value }
+    : { changed: true, items };
+}
+
+function normalizeOptionalEntityArray<T>(value: T[] | undefined): {
+  changed: boolean;
+  items: T[] | undefined;
+} {
+  if (!Array.isArray(value)) {
+    return { changed: false, items: undefined };
+  }
+
+  const items = value.filter(hasValidEntityIndices);
+  if (items.length === 0) {
+    return { changed: true, items: undefined };
+  }
+
+  return items.length === value.length
+    ? { changed: false, items: value }
+    : { changed: true, items };
+}
+
+export function normalizeTweetEntities<T extends QuotedTweet | Tweet>(
+  tweet: T
+): T {
   const current = (tweet.entities ?? {}) as Partial<Tweet["entities"]>;
-  const hashtags = Array.isArray(current.hashtags) ? current.hashtags : [];
-  const urls = Array.isArray(current.urls) ? current.urls : [];
-  const user_mentions = Array.isArray(current.user_mentions)
-    ? current.user_mentions
-    : [];
-  const symbols = Array.isArray(current.symbols) ? current.symbols : [];
+  const hashtags = normalizeRequiredEntityArray(current.hashtags);
+  const urls = normalizeRequiredEntityArray(current.urls);
+  const user_mentions = normalizeRequiredEntityArray(current.user_mentions);
+  const symbols = normalizeRequiredEntityArray(current.symbols);
+  const media = normalizeOptionalEntityArray(current.media);
+  const quotedTweet = "quoted_tweet" in tweet ? tweet.quoted_tweet : undefined;
+  const normalizedQuotedTweet = quotedTweet
+    ? normalizeTweetEntities(quotedTweet)
+    : quotedTweet;
 
   if (
-    current.hashtags === hashtags &&
-    current.urls === urls &&
-    current.user_mentions === user_mentions &&
-    current.symbols === symbols
+    !(
+      hashtags.changed ||
+      urls.changed ||
+      user_mentions.changed ||
+      symbols.changed ||
+      media.changed
+    ) &&
+    normalizedQuotedTweet === quotedTweet
   ) {
     return tweet;
   }
@@ -36,13 +88,14 @@ export function normalizeTweetEntities(tweet: Tweet): Tweet {
   return {
     ...tweet,
     entities: {
-      hashtags,
-      urls,
-      user_mentions,
-      symbols,
-      ...(current.media ? { media: current.media } : {}),
+      hashtags: hashtags.items,
+      urls: urls.items,
+      user_mentions: user_mentions.items,
+      symbols: symbols.items,
+      ...(media.items ? { media: media.items } : {}),
     },
-  };
+    ...("quoted_tweet" in tweet ? { quoted_tweet: normalizedQuotedTweet } : {}),
+  } as T;
 }
 
 export async function enrichNoteTweet(tweet: Tweet): Promise<Tweet> {
